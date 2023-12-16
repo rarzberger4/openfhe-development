@@ -1,3 +1,35 @@
+12/16/2023: OpenFHE 1.1.2 (stable) is released
+
+* Improves the performance of secret-key encryption and key generation for all schemes (#598)
+* Improves the efficiency of X(N)OR gates for FHEW/TFHE (#578)
+* Adds an article explaining how to configure OpenFHE for best performance (#549)
+* Includes 18 bug fixes
+
+The detailed list of changes is available at https://github.com/openfheorg/openfhe-development/issues?q=is%3Aissue+milestone%3A%22Release+1.1.2%22
+
+08/23/2023: OpenFHE 1.1.1 (development) is released
+
+* Fixes the CMake files (binfhe module is now a dependency for the pke module) [#525, #538]
+* Fixes a bug in EvalChebyshevFunction (#530)
+* Adds documentation for threshold FHE (#457)
+* Includes several other bug fixes
+
+The detailed list of changes is available at https://github.com/openfheorg/openfhe-development/pulls?q=is%3Apr+milestone%3A%22Release+1.1.1%22
+
+07/28/2023: OpenFHE 1.1.0 (development) is released
+
+* Adds scheme switching between CKKS and FHEW/TFHE
+* Adds comparison and (arg)min evaluation in CKKS via scheme switching to FHEW/FHEW
+* Implements a new FHEW/TFHE bootstrapping method proposed in https://eprint.iacr.org/2022/198 (EUROCRYPT'23)
+* Adds support for multi-input Boolean gates
+* Adds a parameter selection tool for FHEW/TFHE based on the lattice estimator (see https://github.com/openfheorg/openfhe-lattice-estimator)
+* Implements interactive CKKS bootstrapping based on threshold FHE
+* Includes many optimizations for all FHE schemes, e.g., FHEW/TFHE bootstrapping is now 2x faster (takes 26 ms on a commodity laptop)
+* Improves the Hardware Abstraction Layer
+* Many bug fixes and documentation changes
+
+The detailed list of changes is available at https://github.com/openfheorg/openfhe-development/pulls?q=is%3Apr+milestone%3A%22Release+1.1.0%22
+
 06/19/2023: OpenFHE 1.0.4 (stable) is released
 
 * Optimizes hybrid key switching (#377)

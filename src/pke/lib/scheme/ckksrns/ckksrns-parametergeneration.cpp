@@ -49,7 +49,8 @@ const size_t AUXMODSIZE = 60;
 
 bool ParameterGenerationCKKSRNS::ParamsGenCKKSRNS(std::shared_ptr<CryptoParametersBase<DCRTPoly>> cryptoParams,
                                                   usint cyclOrder, usint numPrimes, usint scalingModSize,
-                                                  usint firstModSize, uint32_t numPartQ) const {
+                                                  usint firstModSize, uint32_t numPartQ,
+                                                  COMPRESSION_LEVEL mPIntBootCiphertextCompressionLevel) const {
     const auto cryptoParamsCKKSRNS = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(cryptoParams);
 
     KeySwitchTechnique ksTech        = cryptoParamsCKKSRNS->GetKeySwitchTechnique();
@@ -129,11 +130,11 @@ bool ParameterGenerationCKKSRNS::ParamsGenCKKSRNS(std::shared_ptr<CryptoParamete
             uint32_t cnt = 0;
             for (usint i = numPrimes - 2; i >= 1; i--) {
                 if ((cnt % 2) == 0) {
-                    qPrev = lbcrypto::PreviousPrime(qPrev, cyclOrder);
+                    qPrev = PreviousPrime(qPrev, cyclOrder);
                     q     = qPrev;
                 }
                 else {
-                    qNext = lbcrypto::NextPrime(qNext, cyclOrder);
+                    qNext = NextPrime(qNext, cyclOrder);
                     q     = qNext;
                 }
 
@@ -164,7 +165,7 @@ bool ParameterGenerationCKKSRNS::ParamsGenCKKSRNS(std::shared_ptr<CryptoParamete
                     bool hasSameMod = true;
                     while (hasSameMod) {
                         hasSameMod = false;
-                        qPrev      = lbcrypto::PreviousPrime(qPrev, cyclOrder);
+                        qPrev      = PreviousPrime(qPrev, cyclOrder);
                         for (uint32_t j = i + 1; j < numPrimes; j++) {
                             if (qPrev == moduliQ[j]) {
                                 hasSameMod = true;
@@ -180,7 +181,7 @@ bool ParameterGenerationCKKSRNS::ParamsGenCKKSRNS(std::shared_ptr<CryptoParamete
                     bool hasSameMod     = true;
                     while (hasSameMod) {
                         hasSameMod = false;
-                        qNext      = lbcrypto::NextPrime(qNext, cyclOrder);
+                        qNext      = NextPrime(qNext, cyclOrder);
                         for (uint32_t j = i + 1; j < numPrimes; j++) {
                             if (qNext == moduliQ[j]) {
                                 hasSameMod = true;
@@ -200,8 +201,7 @@ bool ParameterGenerationCKKSRNS::ParamsGenCKKSRNS(std::shared_ptr<CryptoParamete
         moduliQ[0] = PreviousPrime<NativeInteger>(qPrev, cyclOrder);
     }
     else {
-        NativeInteger firstInteger = FirstPrime<NativeInteger>(firstModSize, cyclOrder);
-        moduliQ[0]                 = PreviousPrime<NativeInteger>(firstInteger, cyclOrder);
+        moduliQ[0] = LastPrime<NativeInteger>(firstModSize, cyclOrder);
     }
     rootsQ[0] = RootOfUnity(cyclOrder, moduliQ[0]);
 
@@ -210,8 +210,7 @@ bool ParameterGenerationCKKSRNS::ParamsGenCKKSRNS(std::shared_ptr<CryptoParamete
             moduliQ[numPrimes] = PreviousPrime<NativeInteger>(moduliQ[0], cyclOrder);
         }
         else {
-            NativeInteger extraInteger = FirstPrime<NativeInteger>(extraModSize, cyclOrder);
-            moduliQ[numPrimes]         = PreviousPrime<NativeInteger>(extraInteger, cyclOrder);
+            moduliQ[numPrimes] = LastPrime<NativeInteger>(extraModSize, cyclOrder);
         }
         rootsQ[numPrimes] = RootOfUnity(cyclOrder, moduliQ[numPrimes]);
     }

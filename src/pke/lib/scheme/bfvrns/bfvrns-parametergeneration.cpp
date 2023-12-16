@@ -133,7 +133,7 @@ bool ParameterGenerationBFVRNS::ParamsGenBFVRNS(std::shared_ptr<CryptoParameters
     };
 
     // initial values
-    uint32_t n = (nCustom > 0) ? nCustom : 512;
+    uint32_t n = (nCustom != 0) ? nCustom : 512;
 
     double logq = 0.;
 
@@ -285,7 +285,7 @@ bool ParameterGenerationBFVRNS::ParamsGenBFVRNS(std::shared_ptr<CryptoParameters
         OPENFHE_THROW(config_error, errMsg);
     }
 
-    if ((n > nCustom) && (nCustom > 0))
+    if ((n > nCustom) && (nCustom != 0))
         OPENFHE_THROW(config_error, "Ring dimension " + std::to_string(nCustom) +
                                         " specified by the user does not meet the "
                                         "security requirement. Please increase it to " +
@@ -303,15 +303,12 @@ bool ParameterGenerationBFVRNS::ParamsGenBFVRNS(std::shared_ptr<CryptoParameters
 
     // makes sure the first integer is less than 2^60-1 to take advantage of NTL
     // optimizations
-    NativeInteger firstInteger = FirstPrime<NativeInteger>(dcrtBits, 2 * n);
-
-    moduliQ[0]                = PreviousPrime<NativeInteger>(firstInteger, 2 * n);
+    moduliQ[0]                = LastPrime<NativeInteger>(dcrtBits, 2 * n);
     rootsQ[0]                 = RootOfUnity<NativeInteger>(2 * n, moduliQ[0]);
     NativeInteger lastModulus = moduliQ[0];
 
     if (multipartyMode == NOISE_FLOODING_MULTIPARTY) {
-        NativeInteger multipartyModulus = FirstPrime<NativeInteger>(NOISE_FLOODING::MULTIPARTY_MOD_SIZE, 2 * n);
-        moduliQ[1]                      = PreviousPrime<NativeInteger>(multipartyModulus, 2 * n);
+        moduliQ[1] = LastPrime<NativeInteger>(NOISE_FLOODING::MULTIPARTY_MOD_SIZE, 2 * n);
         if (moduliQ[1] == lastModulus) {
             moduliQ[1]  = PreviousPrime<NativeInteger>(moduliQ[1], 2 * n);
             lastModulus = moduliQ[1];

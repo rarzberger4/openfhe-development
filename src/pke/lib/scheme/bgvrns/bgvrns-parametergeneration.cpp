@@ -198,7 +198,7 @@ std::pair<std::vector<NativeInteger>, uint32_t> ParameterGenerationBGVRNS::compu
             "Change parameters! Try reducing the number of additions per level, "
             "number of key switches per level, or the digit size. We cannot support moduli greater than 60 bits.");
     }
-    uint32_t totalModSize = firstModSize;
+
     moduliQ[0]            = FirstPrime<NativeInteger>(firstModSize, cyclOrder);
 
     if (scalTech == FLEXIBLEAUTOEXT) {
@@ -207,16 +207,17 @@ std::pair<std::vector<NativeInteger>, uint32_t> ParameterGenerationBGVRNS::compu
         extraModLowerBound += keySwitchCount * noiseEstimates.keySwitchingNoise / noiseEstimates.noisePerLevel;
         extraModLowerBound *= 2;
         usint extraModSize = ceil(log2(extraModLowerBound));
+
         if (extraModSize >= DCRT_MODULUS::MAX_SIZE) {
             OPENFHE_THROW(
                 config_error,
                 "Change parameters! Try reducing the number of additions per level, "
                 "number of key switches per level, or the digit size. We cannot support moduli greater than 60 bits.");
         }
-        totalModSize += extraModSize;
+
         moduliQ[numPrimes] = FirstPrime<NativeInteger>(extraModSize, cyclOrder);
         while (moduliQ[numPrimes] == moduliQ[0] || moduliQ[numPrimes] == plainModulusInt) {
-            moduliQ[numPrimes] = NextPrime<NativeInteger>(moduliQ[0], cyclOrder);
+            moduliQ[numPrimes] = NextPrime<NativeInteger>(moduliQ[numPrimes], cyclOrder);
         }
     }
 
@@ -245,7 +246,6 @@ std::pair<std::vector<NativeInteger>, uint32_t> ParameterGenerationBGVRNS::compu
                 "Change parameters! Try reducing the number of additions per level, "
                 "number of key switches per level, or the digit size. We cannot support moduli greater than 60 bits.");
         }
-        totalModSize += modSize * (numPrimes - 1);
 
         // Compute moduli.
         moduliQ[1] = FirstPrime<NativeInteger>(modSize, cyclOrder);
@@ -275,7 +275,11 @@ std::pair<std::vector<NativeInteger>, uint32_t> ParameterGenerationBGVRNS::compu
         }
     }
 
-    return std::make_pair(moduliQ, totalModSize);
+    BigInteger composite(1);
+    for (BigInteger m : moduliQ)
+        composite *= m;
+
+    return std::make_pair(moduliQ, composite.GetMSB());
 }
 
 void ParameterGenerationBGVRNS::InitializeFloodingDgg(std::shared_ptr<CryptoParametersBase<DCRTPoly>> cryptoParams,
@@ -291,7 +295,6 @@ void ParameterGenerationBGVRNS::InitializeFloodingDgg(std::shared_ptr<CryptoPara
     double sigma              = cryptoParamsBGVRNS->GetDistributionParameter();
     double alpha              = cryptoParamsBGVRNS->GetAssuranceMeasure();
     usint r                   = cryptoParamsBGVRNS->GetDigitSize();
-    double log2q              = log2(cryptoParamsBGVRNS->GetElementParams()->GetModulus().ConvertToDouble());
     double B_e                = sqrt(alpha) * sigma;
     uint32_t auxBits          = DCRT_MODULUS::MAX_SIZE;
     uint32_t thresholdParties = cryptoParamsBGVRNS->GetThresholdNumOfParties();
@@ -300,6 +303,9 @@ void ParameterGenerationBGVRNS::InitializeFloodingDgg(std::shared_ptr<CryptoPara
     // parties is 1 by default but can be set to the number of parties in a threshold application.
     // Bkey set to thresholdParties * 1 for ternary distribution
     double Bkey = (cryptoParamsBGVRNS->GetSecretKeyDist() == GAUSSIAN) ? sigma * sqrt(alpha) : thresholdParties;
+
+    double stat_sec_half = cryptoParamsBGVRNS->GetStatisticalSecurity() / 2;
+    double num_queries   = cryptoParamsBGVRNS->GetNumAdversarialQueries();
 
     // get the flooding discrete gaussian distribution
     auto dggFlooding   = cryptoParamsBGVRNS->GetFloodingDiscreteGaussianGenerator();
@@ -310,8 +316,9 @@ void ParameterGenerationBGVRNS::InitializeFloodingDgg(std::shared_ptr<CryptoPara
     else if (PREMode == NOISE_FLOODING_HRA) {
         if (ksTech == BV) {
             if (r > 0) {
-                noise_param = pow(2, NOISE_FLOODING::STAT_SECURITY) * (1 + 2 * Bkey) * (numPrimes + 1) *
-                              (log2q / r + 1) * sqrt(ringDimension) * (pow(2, r) - 1) * B_e;
+                // sqrt(12*num_queries) factor required for security analysis
+                noise_param = sqrt(12 * num_queries) * pow(2, stat_sec_half) * (1 + 2 * Bkey) * numPrimes *
+                              (auxBits / r + 1) * sqrt(ringDimension) * (pow(2, r) - 1) * B_e;
             }
             else {
                 OPENFHE_THROW(config_error, "Relinwindow value cannot be 0 for BV keyswitching");
@@ -322,8 +329,9 @@ void ParameterGenerationBGVRNS::InitializeFloodingDgg(std::shared_ptr<CryptoPara
                 double numTowersPerDigit = cryptoParamsBGVRNS->GetNumPerPartQ();
                 int numDigits            = cryptoParamsBGVRNS->GetNumPartQ();
                 noise_param              = numTowersPerDigit * numDigits * sqrt(ringDimension) * B_e * (1 + 2 * Bkey);
-                noise_param += auxBits * (1 + sqrt(ringDimension));
-                noise_param = pow(2, NOISE_FLOODING::STAT_SECURITY) * noise_param;
+                noise_param += auxBits * (1 + sqrt(ringDimension) * Bkey);
+                // sqrt(12*num_queries) factor required for security analysis
+                noise_param = sqrt(12 * num_queries) * pow(2, stat_sec_half) * noise_param;
             }
             else {
                 OPENFHE_THROW(config_error, "Relinwindow value can only  be zero for Hybrid keyswitching");
@@ -335,6 +343,8 @@ void ParameterGenerationBGVRNS::InitializeFloodingDgg(std::shared_ptr<CryptoPara
     }
     // set the flooding distribution parameter to the distribution.
     dggFlooding.SetStd(noise_param);
+    const auto cryptoParamsRNS = std::dynamic_pointer_cast<CryptoParametersRNS>(cryptoParams);
+    cryptoParamsRNS->SetFloodingDistributionParameter(noise_param);
 }
 
 bool ParameterGenerationBGVRNS::ParamsGenBGVRNS(std::shared_ptr<CryptoParametersBase<DCRTPoly>> cryptoParams,
@@ -439,16 +449,12 @@ bool ParameterGenerationBGVRNS::ParamsGenBGVRNS(std::shared_ptr<CryptoParameters
         modulusOrder = (uint64_t)pow2ptm * plaintextModulus;
 
         // Get the largest prime with size less or equal to firstModSize bits.
-        NativeInteger firstInteger = FirstPrime<NativeInteger>(firstModSize, modulusOrder);
-
-        firstInteger = PreviousPrime<NativeInteger>(firstInteger, modulusOrder);
-
-        moduliQ[0] = PreviousPrime<NativeInteger>(firstInteger, modulusOrder);
+        moduliQ[0] = LastPrime<NativeInteger>(firstModSize, modulusOrder);
         rootsQ[0]  = RootOfUnity<NativeInteger>(cyclOrder, moduliQ[0]);
 
         if (numPrimes > 1) {
             NativeInteger q =
-                (firstModSize != dcrtBits) ? FirstPrime<NativeInteger>(dcrtBits, modulusOrder) : moduliQ[0];
+                (firstModSize != dcrtBits) ? LastPrime<NativeInteger>(dcrtBits, modulusOrder) : moduliQ[0];
 
             moduliQ[1] = PreviousPrime<NativeInteger>(q, modulusOrder);
             rootsQ[1]  = RootOfUnity<NativeInteger>(cyclOrder, moduliQ[1]);
@@ -460,8 +466,7 @@ bool ParameterGenerationBGVRNS::ParamsGenBGVRNS(std::shared_ptr<CryptoParameters
         }
     }
     if (multipartyMode == NOISE_FLOODING_MULTIPARTY) {
-        NativeInteger extraModulus = FirstPrime<NativeInteger>(NOISE_FLOODING::MULTIPARTY_MOD_SIZE, modulusOrder);
-        extraModulus               = PreviousPrime<NativeInteger>(extraModulus, modulusOrder);
+        NativeInteger extraModulus = LastPrime<NativeInteger>(NOISE_FLOODING::MULTIPARTY_MOD_SIZE, modulusOrder);
         std::vector<NativeInteger> extraModuli(NOISE_FLOODING::NUM_MODULI_MULTIPARTY);
         std::vector<NativeInteger> extraRoots(NOISE_FLOODING::NUM_MODULI_MULTIPARTY);
 

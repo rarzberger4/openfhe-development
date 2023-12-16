@@ -48,8 +48,8 @@
 
 namespace lbcrypto {
 
-EvalKey<DCRTPoly> KeySwitchBV::KeySwitchGen(const PrivateKey<DCRTPoly> oldKey,
-                                            const PrivateKey<DCRTPoly> newKey) const {
+EvalKey<DCRTPoly> KeySwitchBV::KeySwitchGenInternal(const PrivateKey<DCRTPoly> oldKey,
+                                                    const PrivateKey<DCRTPoly> newKey) const {
     EvalKeyRelin<DCRTPoly> ek(std::make_shared<EvalKeyRelinImpl<DCRTPoly>>(newKey->GetCryptoContext()));
 
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersRNS>(newKey->GetCryptoParameters());
@@ -116,12 +116,14 @@ EvalKey<DCRTPoly> KeySwitchBV::KeySwitchGen(const PrivateKey<DCRTPoly> oldKey,
 
     ek->SetAVector(std::move(av));
     ek->SetBVector(std::move(bv));
+    ek->SetKeyTag(newKey->GetKeyTag());
 
     return ek;
 }
 
-EvalKey<DCRTPoly> KeySwitchBV::KeySwitchGen(const PrivateKey<DCRTPoly> oldKey, const PrivateKey<DCRTPoly> newKey,
-                                            const EvalKey<DCRTPoly> ek) const {
+EvalKey<DCRTPoly> KeySwitchBV::KeySwitchGenInternal(const PrivateKey<DCRTPoly> oldKey,
+                                                    const PrivateKey<DCRTPoly> newKey,
+                                                    const EvalKey<DCRTPoly> ek) const {
     EvalKeyRelin<DCRTPoly> evalKey(std::make_shared<EvalKeyRelinImpl<DCRTPoly>>(newKey->GetCryptoContext()));
 
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersRNS>(oldKey->GetCryptoParameters());
@@ -201,18 +203,19 @@ EvalKey<DCRTPoly> KeySwitchBV::KeySwitchGen(const PrivateKey<DCRTPoly> oldKey, c
 
     evalKey->SetAVector(std::move(av));
     evalKey->SetBVector(std::move(bv));
+    evalKey->SetKeyTag(newKey->GetKeyTag());
 
     return evalKey;
 }
 
-EvalKey<DCRTPoly> KeySwitchBV::KeySwitchGen(const PrivateKey<DCRTPoly> oldSk, const PublicKey<DCRTPoly> newPk) const {
+EvalKey<DCRTPoly> KeySwitchBV::KeySwitchGenInternal(const PrivateKey<DCRTPoly> oldSk,
+                                                    const PublicKey<DCRTPoly> newPk) const {
     EvalKeyRelin<DCRTPoly> ek = std::make_shared<EvalKeyRelinImpl<DCRTPoly>>(newPk->GetCryptoContext());
 
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersRNS>(newPk->GetCryptoParameters());
 
     const auto ns                = cryptoParams->GetNoiseScale();
     const DCRTPoly::DggType& dgg = cryptoParams->GetDiscreteGaussianGenerator();
-    DCRTPoly::DugType dug;
     DCRTPoly::TugType tug;
 
     const DCRTPoly& sOld = oldSk->GetPrivateElement();
@@ -231,7 +234,6 @@ EvalKey<DCRTPoly> KeySwitchBV::KeySwitchGen(const PrivateKey<DCRTPoly> oldSk, co
             std::vector<DCRTPoly::PolyType> sOldDecomposed = sOld.GetElementAtIndex(i).PowersOfBase(digitSize);
 
             for (size_t k = 0; k < sOldDecomposed.size(); k++) {
-                // Creates an element with all zeroes
                 DCRTPoly filtered(elementParams, Format::EVALUATION, true);
                 filtered.SetElementAtIndex(i, sOldDecomposed[k]);
 
@@ -252,7 +254,6 @@ EvalKey<DCRTPoly> KeySwitchBV::KeySwitchGen(const PrivateKey<DCRTPoly> oldSk, co
     }
     else {
         for (usint i = 0; i < sOld.GetNumOfElements(); i++) {
-            // Creates an element with all zeroes
             DCRTPoly filtered(elementParams, Format::EVALUATION, true);
             filtered.SetElementAtIndex(i, sOld.GetElementAtIndex(i));
 
@@ -273,6 +274,7 @@ EvalKey<DCRTPoly> KeySwitchBV::KeySwitchGen(const PrivateKey<DCRTPoly> oldSk, co
 
     ek->SetAVector(std::move(av));
     ek->SetBVector(std::move(bv));
+    ek->SetKeyTag(newPk->GetKeyTag());
 
     return ek;
 }
@@ -296,21 +298,16 @@ void KeySwitchBV::KeySwitchInPlace(Ciphertext<DCRTPoly>& ciphertext, const EvalK
     cv.resize(2);
 }
 
-std::shared_ptr<std::vector<DCRTPoly>> KeySwitchBV::KeySwitchCore(DCRTPoly a, const EvalKey<DCRTPoly> evalKey) const {
-    const auto cryptoParamsBase                   = evalKey->GetCryptoParameters();
-    std::shared_ptr<std::vector<DCRTPoly>> digits = EvalKeySwitchPrecomputeCore(a, cryptoParamsBase);
-    std::shared_ptr<std::vector<DCRTPoly>> result = EvalFastKeySwitchCore(digits, evalKey, a.GetParams());
-    return result;
+std::shared_ptr<std::vector<DCRTPoly>> KeySwitchBV::KeySwitchCore(const DCRTPoly& a,
+                                                                  const EvalKey<DCRTPoly> evalKey) const {
+    return EvalFastKeySwitchCore(EvalKeySwitchPrecomputeCore(a, evalKey->GetCryptoParameters()), evalKey,
+                                 a.GetParams());
 }
 
 std::shared_ptr<std::vector<DCRTPoly>> KeySwitchBV::EvalKeySwitchPrecomputeCore(
-    DCRTPoly c, std::shared_ptr<CryptoParametersBase<DCRTPoly>> cryptoParamsBase) const {
+    const DCRTPoly& c, std::shared_ptr<CryptoParametersBase<DCRTPoly>> cryptoParamsBase) const {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersRNS>(cryptoParamsBase);
-
-    uint32_t digitSize = cryptoParams->GetDigitSize();
-
-    auto decomposed = c.CRTDecompose(digitSize);
-    return std::make_shared<std::vector<DCRTPoly>>(decomposed.begin(), decomposed.end());
+    return std::make_shared<std::vector<DCRTPoly>>(c.CRTDecompose(cryptoParams->GetDigitSize()));
 }
 
 std::shared_ptr<std::vector<DCRTPoly>> KeySwitchBV::EvalFastKeySwitchCore(

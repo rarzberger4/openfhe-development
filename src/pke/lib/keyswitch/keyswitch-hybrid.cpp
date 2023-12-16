@@ -45,13 +45,14 @@
 
 namespace lbcrypto {
 
-EvalKey<DCRTPoly> KeySwitchHYBRID::KeySwitchGen(const PrivateKey<DCRTPoly> oldKey,
-                                                const PrivateKey<DCRTPoly> newKey) const {
-    return KeySwitchHYBRID::KeySwitchGen(oldKey, newKey, nullptr);
+EvalKey<DCRTPoly> KeySwitchHYBRID::KeySwitchGenInternal(const PrivateKey<DCRTPoly> oldKey,
+                                                        const PrivateKey<DCRTPoly> newKey) const {
+    return KeySwitchHYBRID::KeySwitchGenInternal(oldKey, newKey, nullptr);
 }
 
-EvalKey<DCRTPoly> KeySwitchHYBRID::KeySwitchGen(const PrivateKey<DCRTPoly> oldKey, const PrivateKey<DCRTPoly> newKey,
-                                                const EvalKey<DCRTPoly> ekPrev) const {
+EvalKey<DCRTPoly> KeySwitchHYBRID::KeySwitchGenInternal(const PrivateKey<DCRTPoly> oldKey,
+                                                        const PrivateKey<DCRTPoly> newKey,
+                                                        const EvalKey<DCRTPoly> ekPrev) const {
     EvalKeyRelin<DCRTPoly> ek(std::make_shared<EvalKeyRelinImpl<DCRTPoly>>(newKey->GetCryptoContext()));
 
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersRNS>(newKey->GetCryptoParameters());
@@ -100,7 +101,7 @@ EvalKey<DCRTPoly> KeySwitchHYBRID::KeySwitchGen(const PrivateKey<DCRTPoly> oldKe
 
     for (size_t part = 0; part < numPartQ; ++part) {
         DCRTPoly a = (ekPrev == nullptr) ? DCRTPoly(dug, paramsQP, Format::EVALUATION) :  // single-key HE
-                                         ekPrev->GetAVector()[part];                      // threshold HE
+                                           ekPrev->GetAVector()[part];                                      // threshold HE
         DCRTPoly e(dgg, paramsQP, Format::EVALUATION);
         DCRTPoly b(paramsQP, Format::EVALUATION, true);
 
@@ -129,12 +130,12 @@ EvalKey<DCRTPoly> KeySwitchHYBRID::KeySwitchGen(const PrivateKey<DCRTPoly> oldKe
 
     ek->SetAVector(std::move(av));
     ek->SetBVector(std::move(bv));
-
+    ek->SetKeyTag(newKey->GetKeyTag());
     return ek;
 }
 
-EvalKey<DCRTPoly> KeySwitchHYBRID::KeySwitchGen(const PrivateKey<DCRTPoly> oldKey,
-                                                const PublicKey<DCRTPoly> newKey) const {
+EvalKey<DCRTPoly> KeySwitchHYBRID::KeySwitchGenInternal(const PrivateKey<DCRTPoly> oldKey,
+                                                        const PublicKey<DCRTPoly> newKey) const {
     EvalKeyRelin<DCRTPoly> ek = std::make_shared<EvalKeyRelinImpl<DCRTPoly>>(newKey->GetCryptoContext());
 
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersRNS>(newKey->GetCryptoParameters());
@@ -152,7 +153,6 @@ EvalKey<DCRTPoly> KeySwitchHYBRID::KeySwitchGen(const PrivateKey<DCRTPoly> oldKe
 
     const auto ns      = cryptoParams->GetNoiseScale();
     const DggType& dgg = cryptoParams->GetDiscreteGaussianGenerator();
-    DugType dug;
     TugType tug;
 
     auto numPartQ = cryptoParams->GetNumPartQ();
@@ -204,6 +204,7 @@ EvalKey<DCRTPoly> KeySwitchHYBRID::KeySwitchGen(const PrivateKey<DCRTPoly> oldKe
 
     ek->SetAVector(std::move(av));
     ek->SetBVector(std::move(bv));
+    ek->SetKeyTag(newKey->GetKeyTag());
 
     return ek;
 }
@@ -319,16 +320,14 @@ DCRTPoly KeySwitchHYBRID::KeySwitchDownFirstElement(ConstCiphertext<DCRTPoly> ci
     return cv0;
 }
 
-std::shared_ptr<std::vector<DCRTPoly>> KeySwitchHYBRID::KeySwitchCore(DCRTPoly a,
+std::shared_ptr<std::vector<DCRTPoly>> KeySwitchHYBRID::KeySwitchCore(const DCRTPoly& a,
                                                                       const EvalKey<DCRTPoly> evalKey) const {
-    const auto cryptoParamsBase                   = evalKey->GetCryptoParameters();
-    std::shared_ptr<std::vector<DCRTPoly>> digits = EvalKeySwitchPrecomputeCore(a, cryptoParamsBase);
-    std::shared_ptr<std::vector<DCRTPoly>> result = EvalFastKeySwitchCore(digits, evalKey, a.GetParams());
-    return result;
+    return EvalFastKeySwitchCore(EvalKeySwitchPrecomputeCore(a, evalKey->GetCryptoParameters()), evalKey,
+                                 a.GetParams());
 }
 
 std::shared_ptr<std::vector<DCRTPoly>> KeySwitchHYBRID::EvalKeySwitchPrecomputeCore(
-    DCRTPoly c, std::shared_ptr<CryptoParametersBase<DCRTPoly>> cryptoParamsBase) const {
+    const DCRTPoly& c, std::shared_ptr<CryptoParametersBase<DCRTPoly>> cryptoParamsBase) const {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersRNS>(cryptoParamsBase);
 
     const std::shared_ptr<ParmType> paramsQl  = c.GetParams();
@@ -363,7 +362,7 @@ std::shared_ptr<std::vector<DCRTPoly>> KeySwitchHYBRID::EvalKeySwitchPrecomputeC
                 roots[i]  = paramsPartQ->GetParams()[i]->GetRootOfUnity();
             }
 
-            auto params = DCRTPoly::Params(paramsPartQ->GetCyclotomicOrder(), moduli, roots, {}, {}, 0);
+            auto params = DCRTPoly::Params(paramsPartQ->GetCyclotomicOrder(), moduli, roots);
 
             partsCt[part] = DCRTPoly(std::make_shared<ParmType>(params), Format::EVALUATION, true);
         }
@@ -387,11 +386,11 @@ std::shared_ptr<std::vector<DCRTPoly>> KeySwitchHYBRID::EvalKeySwitchPrecomputeC
 
         uint32_t sizePartQl = partsCt[part].GetNumOfElements();
         partsCtCompl[part]  = partCtClone.ApproxSwitchCRTBasis(
-             cryptoParams->GetParamsPartQ(part), cryptoParams->GetParamsComplPartQ(sizeQl - 1, part),
-             cryptoParams->GetPartQlHatInvModq(part, sizePartQl - 1),
-             cryptoParams->GetPartQlHatInvModqPrecon(part, sizePartQl - 1),
-             cryptoParams->GetPartQlHatModp(sizeQl - 1, part),
-             cryptoParams->GetmodComplPartqBarrettMu(sizeQl - 1, part));
+            cryptoParams->GetParamsPartQ(part), cryptoParams->GetParamsComplPartQ(sizeQl - 1, part),
+            cryptoParams->GetPartQlHatInvModq(part, sizePartQl - 1),
+            cryptoParams->GetPartQlHatInvModqPrecon(part, sizePartQl - 1),
+            cryptoParams->GetPartQlHatModp(sizeQl - 1, part),
+            cryptoParams->GetmodComplPartqBarrettMu(sizeQl - 1, part));
 
         partsCtCompl[part].SetFormat(Format::EVALUATION);
 

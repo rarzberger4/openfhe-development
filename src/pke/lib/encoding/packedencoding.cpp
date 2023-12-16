@@ -34,8 +34,8 @@
  */
 
 #include "encoding/packedencoding.h"
+#include "math/math-hal.h"
 #include "utils/utilities.h"
-#include "math/hal.h"
 
 namespace lbcrypto {
 
@@ -263,7 +263,7 @@ void PackedEncoding::SetParams(usint m, EncodingParams params) {
                     }
                     else {
                         usint bigModulusSize   = ceil(log2(2 * m - 1)) + 2 * modulusNI.GetMSB() + 1;
-                        m_bigModulus[modulusM] = FirstPrime<NativeInteger>(bigModulusSize, nttDim);
+                        m_bigModulus[modulusM] = LastPrime<NativeInteger>(bigModulusSize, nttDim);
                     }
                     m_bigRoot[modulusM] = RootOfUnity<NativeInteger>(nttDim, m_bigModulus[modulusM]);
                     params->SetPlaintextBigModulus(m_bigModulus[modulusM]);
