@@ -97,6 +97,7 @@ void FHECKKSRNS::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, std::
     else {
         m_correctionFactor = correctionFactor;
     }
+
     m_bootPrecomMap[slots]                      = std::make_shared<CKKSBootstrapPrecom>();
     std::shared_ptr<CKKSBootstrapPrecom> precom = m_bootPrecomMap[slots];
 
@@ -166,7 +167,8 @@ void FHECKKSRNS::EvalBootstrapSetup(const CryptoContextImpl<DCRTPoly>& cc, std::
         double scaleDec  = 1 / pre;
 
         uint32_t approxModDepth = GetModDepthInternal(cryptoParams->GetSecretKeyDist());
-        uint32_t depthBT        = approxModDepth + precom->m_paramsEnc[CKKS_BOOT_PARAMS::LEVEL_BUDGET] +
+        std::cerr << "approxModDepth: " << approxModDepth << std::endl;
+        uint32_t depthBT = approxModDepth + precom->m_paramsEnc[CKKS_BOOT_PARAMS::LEVEL_BUDGET] +
                            precom->m_paramsDec[CKKS_BOOT_PARAMS::LEVEL_BUDGET];
 
         // compute # of levels to remain when encoding the coefficients
@@ -474,7 +476,13 @@ Ciphertext<DCRTPoly> FHECKKSRNS::EvalBootstrap(ConstCiphertext<DCRTPoly> ciphert
     auto algo                   = cc->GetScheme();
     algo->ModReduceInternalInPlace(raised, raised->GetNoiseScaleDeg() - 1);
 
-    AdjustCiphertext(raised, correction);
+    // AdjustCiphertext(raised, correction);
+    if (m_correctionFactor == 100) {
+        correction = 1;
+    }
+    else {
+        AdjustCiphertext(raised, correction);
+    }
     auto ctxtDCRT = raised->GetElements();
 
     // We only use the level 0 ciphertext here. All other towers are automatically ignored to make
@@ -723,8 +731,13 @@ Ciphertext<DCRTPoly> FHECKKSRNS::EvalBootstrap(ConstCiphertext<DCRTPoly> ciphert
 
 #if NATIVEINT != 128
     // 64-bit only: scale back the message to its original scale.
-    uint64_t corFactor = (uint64_t)1 << std::llround(correction);
-    algo->MultByIntegerInPlace(ctxtDec, corFactor);
+    // uint64_t corFactor = (uint64_t)1 << std::llround(correction);
+    // algo->MultByIntegerInPlace(ctxtDec, corFactor);
+    if (m_correctionFactor != 100) {
+        // 64-bit only: scale back the message to its original scale.
+        uint64_t corFactor = (uint64_t)1 << std::llround(correction);
+        algo->MultByIntegerInPlace(ctxtDec, corFactor);
+    }
 #endif
 
 #ifdef BOOTSTRAPTIMING
@@ -734,6 +747,7 @@ Ciphertext<DCRTPoly> FHECKKSRNS::EvalBootstrap(ConstCiphertext<DCRTPoly> ciphert
 #endif
 
     auto bootstrappingNumTowers = ctxtDec->GetElements()[0].GetNumOfElements();
+    std::cerr << "bootstrappingNumTowers: " << bootstrappingNumTowers << ", initSizeQ: " << initSizeQ << std::endl;
 
     // If we start with more towers, than we obtain from bootstrapping, return the original ciphertext.
     if (bootstrappingNumTowers <= initSizeQ) {
@@ -2337,8 +2351,8 @@ Plaintext FHECKKSRNS::MakeAuxPlaintext(const CryptoContextImpl<DCRTPoly>& cc, co
     if (logc < 0) {
         OPENFHE_THROW("Too small scaling factor");
     }
-    int32_t logValid = (logc <= MAX_BITS_IN_WORD) ? logc : MAX_BITS_IN_WORD;
-    int32_t logApprox = logc - logValid;
+    int32_t logValid    = (logc <= MAX_BITS_IN_WORD) ? logc : MAX_BITS_IN_WORD;
+    int32_t logApprox   = logc - logValid;
     double approxFactor = pow(2, logApprox);
 
     std::vector<int64_t> temp(2 * slots);
@@ -2369,11 +2383,11 @@ Plaintext FHECKKSRNS::MakeAuxPlaintext(const CryptoContextImpl<DCRTPoly>& cc, co
                 double imagVal = prodFactor.imag();
 
                 if (realVal > realMax) {
-                    realMax = realVal;
+                    realMax    = realVal;
                     realMaxIdx = idx;
                 }
                 if (imagVal > imagMax) {
-                    imagMax = imagVal;
+                    imagMax    = imagVal;
                     imagMaxIdx = idx;
                 }
             }
@@ -2396,11 +2410,11 @@ Plaintext FHECKKSRNS::MakeAuxPlaintext(const CryptoContextImpl<DCRTPoly>& cc, co
         int64_t re = std::llround(dre);
         int64_t im = std::llround(dim);
 
-        temp[i] = (re < 0) ? Max64BitValue() + re : re;
+        temp[i]         = (re < 0) ? Max64BitValue() + re : re;
         temp[i + slots] = (im < 0) ? Max64BitValue() + im : im;
     }
 
-    const std::shared_ptr<ILDCRTParams<BigInteger>> bigParams = plainElement.GetParams();
+    const std::shared_ptr<ILDCRTParams<BigInteger>> bigParams        = plainElement.GetParams();
     const std::vector<std::shared_ptr<ILNativeParams>>& nativeParams = bigParams->GetParams();
 
     for (size_t i = 0; i < nativeParams.size(); i++) {
@@ -2436,7 +2450,7 @@ Plaintext FHECKKSRNS::MakeAuxPlaintext(const CryptoContextImpl<DCRTPoly>& cc, co
     // Scale back up by the approxFactor to get the correct encoding.
     if (logApprox > 0) {
         int32_t logStep = (logApprox <= MAX_LOG_STEP) ? logApprox : MAX_LOG_STEP;
-        auto intStep = DCRTPoly::Integer(uint64_t(1) << logStep);
+        auto intStep    = DCRTPoly::Integer(uint64_t(1) << logStep);
         std::vector<DCRTPoly::Integer> crtApprox(numTowers, intStep);
         logApprox -= logStep;
 
