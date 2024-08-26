@@ -259,11 +259,12 @@ void AdjustCiphertext(Ciphertext<DCRTPoly>& ciphertext, double correction);
 
 void ApplyDoubleAngleIterations(Ciphertext<DCRTPoly>& ciphertext, uint32_t numIter);
 
-Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext);
+Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, BigInteger initialScaling, uint64_t postScaling);
 
 void SimpleBootstrapExample();
 void TestModApprox();
 void Floor();
+void Sign();
 
 std::vector<DCRTPoly> ModSwitchUp(const std::vector<Poly>& input, BigInteger Qfrom, BigInteger Qto,
                                   const std::shared_ptr<lbcrypto::M4DCRTParams>& elementParams) {
@@ -396,11 +397,20 @@ std::vector<Poly> EncryptBFVCoeff(std::vector<int64_t> input, BigInteger Q, BigI
     BigInteger bigQPrime = b.GetModulus();
 
     // Do modulus switching from Q' to Q
-    bPoly = bPoly.MultiplyAndRound(Q, bigQPrime);
-    bPoly.SwitchModulus(Q, 1, 0, 0);
+    if (Q < bigQPrime) {
+        bPoly = bPoly.MultiplyAndRound(Q, bigQPrime);
+        bPoly.SwitchModulus(Q, 1, 0, 0);
 
-    aPoly = aPoly.MultiplyAndRound(Q, bigQPrime);
-    aPoly.SwitchModulus(Q, 1, 0, 0);
+        aPoly = aPoly.MultiplyAndRound(Q, bigQPrime);
+        aPoly.SwitchModulus(Q, 1, 0, 0);
+    }
+    else {
+        bPoly.SwitchModulus(Q, 1, 0, 0);
+        bPoly = bPoly.MultiplyAndRound(Q, bigQPrime);
+
+        aPoly.SwitchModulus(Q, 1, 0, 0);
+        aPoly = aPoly.MultiplyAndRound(Q, bigQPrime);
+    }
 
     auto mPoly = bPoly;
     mPoly.SetValuesToZero();
@@ -488,7 +498,13 @@ std::vector<int64_t> DecryptBFVCoeff(const std::vector<Poly>& input, BigInteger 
 
     auto bigQPrime = elementParams->GetModulus();
 
-    auto ba = ModSwitchUp(input, Q, bigQPrime, elementParams);
+    std::vector<lbcrypto::DCRTPoly> ba(2);
+    if (Q < bigQPrime) {
+        ba = ModSwitchUp(input, Q, bigQPrime, elementParams);
+    }
+    else {
+        ba = ModSwitchDown(input, Q, bigQPrime, elementParams);
+    }
 
     size_t sizeQ  = s.GetParams()->GetParams().size();
     size_t sizeQl = elementParams->GetParams().size();
@@ -509,8 +525,14 @@ std::vector<int64_t> DecryptBFVCoeff(const std::vector<Poly>& input, BigInteger 
     }
     std::cerr << "\n";
 
-    mPoly = mPoly.MultiplyAndRound(Q, bigQPrime);
-    mPoly.SwitchModulus(Q, 1, 0, 0);
+    if (Q < bigQPrime) {
+        mPoly = mPoly.MultiplyAndRound(Q, bigQPrime);
+        mPoly.SwitchModulus(Q, 1, 0, 0);
+    }
+    else {
+        mPoly.SwitchModulus(Q, 1, 0, 0);
+        mPoly = mPoly.MultiplyAndRound(Q, bigQPrime);
+    }
 
     mPoly = mPoly.MultiplyAndRound(p, Q);
     mPoly.SwitchModulus(p, 1, 0, 0);
@@ -538,24 +560,6 @@ std::vector<double> DecryptCKKSCoeff(const std::vector<Poly>& input, BigInteger 
     const DCRTPoly& s = privateKey->GetPrivateElement();
 
     BigInteger bigQPrime = s.GetModulus();
-
-    // Poly bPoly = input[0];
-    // bPoly.SwitchModulus(bigQPrime, 1, 0, 0); //need to switch to modulus before because the new modulus is bigger
-    // bPoly = bPoly.MultiplyAndRound(bigQPrime, Q);
-
-    // Poly aPoly = input[1];
-    // aPoly.SwitchModulus(bigQPrime, 1, 0, 0); //need to switch to modulus before because the new modulus is bigger
-    // aPoly = aPoly.MultiplyAndRound(bigQPrime, Q);
-
-    // // Going back to Double-CRT
-    // DCRTPoly b = DCRTPoly(bPoly, s.GetParams());
-    // DCRTPoly a = DCRTPoly(aPoly, s.GetParams());
-
-    // // Switching to NTT representation
-    // b.SetFormat(Format::EVALUATION);
-    // a.SetFormat(Format::EVALUATION);
-
-    // auto m = b + a*s;
 
     auto ba = ModSwitchUp(input, Q, bigQPrime, s.GetParams());
 
@@ -1920,13 +1924,12 @@ void EvalFuncBTSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t numSlots, s
     double qDouble   = q.ConvertToDouble();
     uint128_t factor = ((uint128_t)1 << ((uint32_t)std::round(std::log2(qDouble))));
     double pre       = qDouble / factor;
-    std::cerr << "pre in setup = q / factor = " << pre << ". Not necessary, made it 1." << std::endl;
-    // double pre       = 1.0;
+    std::cerr << "pre in setup = q / factor = " << pre << std::endl;
     double k        = (cryptoParams->GetSecretKeyDist() == SPARSE_TERNARY) ? K_SPARSE : 1.0;
-    double scaleEnc = 1.0 / k;  // pre / k;
+    double scaleEnc = pre / k;
     // double scaleEnc  = scaleMod / k; // pre / k;
     // double scaleDec  = 1.0; // 1.0 / pre;
-    double scaleDec = scaleMod;
+    double scaleDec = scaleMod / pre;
 
     uint32_t approxModDepth = 8;  // Andreea: automate?
     uint32_t depthBT        = approxModDepth + m_levelEnc + m_levelDec;
@@ -2755,7 +2758,7 @@ void AdjustCiphertext(Ciphertext<DCRTPoly>& ciphertext, double correction) {
 #if NATIVEINT != 128
         // Scaling down the message by a correction factor to emulate using a larger q0.
         // This step is needed so we could use a scaling factor of up to 2^59 with q9 ~= 2^60.
-        double adjustmentFactor = (targetSF / sourceSF) * (modToDrop / sourceSF) * std::pow(2, -correction);
+        double adjustmentFactor = (targetSF / sourceSF) * (modToDrop / sourceSF) / correction;
 #else
         double adjustmentFactor = (targetSF / sourceSF) * (modToDrop / sourceSF);
 #endif
@@ -2768,13 +2771,13 @@ void AdjustCiphertext(Ciphertext<DCRTPoly>& ciphertext, double correction) {
 #if NATIVEINT != 128
         // Scaling down the message by a correction factor to emulate using a larger q0.
         // This step is needed so we could use a scaling factor of up to 2^59 with q9 ~= 2^60.
-        cc->EvalMultInPlace(ciphertext, std::pow(2, -correction));
+        cc->EvalMultInPlace(ciphertext, correction);
         algo->ModReduceInternalInPlace(ciphertext, BASE_NUM_LEVELS_TO_DROP);
 #endif
     }
 }
 
-Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext) {
+Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, BigInteger initialScaling, uint64_t postScaling) {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ciphertext->GetCryptoParameters());
 
     if (cryptoParams->GetKeySwitchTechnique() != HYBRID)
@@ -2818,13 +2821,13 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext) {
     }
     auto elementParamsRaisedPtr = std::make_shared<ILDCRTParams<DCRTPoly::Integer>>(M, moduli, roots);
 
+    // Andreea: we don't need the type of scaling and correction as in the standard CKKS bootstrapping
+    /*
     NativeInteger q = elementParamsRaisedPtr->GetParams()[0]->GetModulus().ConvertToInt();
     double qDouble  = q.ConvertToDouble();
-
     const auto p = cryptoParams->GetPlaintextModulus();
     double powP  = pow(2, p);
-
-    std::cerr << "q: " << q << std::endl;
+    std::cerr << "q: " << qDouble << std::endl;
     std::cerr << std::setprecision(15) << "p: " << powP << std::endl;
 
     int32_t deg = std::round(std::log2(qDouble / powP));
@@ -2834,16 +2837,13 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext) {
     //                       std::to_string(m_correctionFactor) + "].");
     //     }
     // #endif
-    uint32_t correction =
-        1 -
-        deg;  // Andreea: It seems that for the functional bootstrapping mod 2 to work, we need to divide by 2 before raising
-    // std::cerr << "correction = " << correction << std::endl;
     double post = std::pow(2, static_cast<double>(deg));
-
     double pre = 1. / post;
-    std::cerr << "pre in EvalBT = 1 / 2^std::round(std::log2(q / p)) = " << pre << std::endl;
-    std::cerr << "correction before mod raise, not removed later = " << (1 << correction) << std::endl;
     uint64_t scalar = std::llround(post);
+    */
+    // double correction = qDouble; // Andreea: this needs to be the ration between the initial scalingFactor and the desired CKKS scaling factor
+    double correction = initialScaling.ConvertToDouble() / cryptoParams->GetScalingFactorReal(0);
+    std::cerr << "correction: " << correction << std::endl;
 
     //------------------------------------------------------------------------------
     // RAISING THE MODULUS
@@ -2859,9 +2859,10 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext) {
     auto algo                   = cc->GetScheme();
     algo->ModReduceInternalInPlace(raised, raised->GetNoiseScaleDeg() - 1);
 
-    AdjustCiphertext(
-        raised,
-        correction);  // Andreea: It seems that for the functional bootstrapping mod 2 to work, we need to divide by 2 before raising
+    // Andreea: if correction = 1, we should not do this adjustment and save a level
+    if (std::llround(correction) != 1.0) {
+        AdjustCiphertext(raised, correction);
+    }
     auto ctxtDCRT = raised->GetElements();
 
     // We only use the level 0 ciphertext here. All other towers are automatically ignored to make
@@ -2893,7 +2894,6 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext) {
     double k = 0;
 
     if (cryptoParams->GetSecretKeyDist() == SPARSE_TERNARY) {
-        // coefficients = g_coefficientsSparse;
         coefficients = coeff_cos_12_mod2;
         // k = K_SPARSE;
         k = 1.0;  // do not divide by k as we already did it during precomputation
@@ -2903,7 +2903,8 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext) {
         k            = K_UNIFORM;
     }
 
-    double constantEvalMult = pre * (1.0 / (k * N));
+    // double constantEvalMult = pre * (1.0 / (k * N));
+    double constantEvalMult = 1.0 / (k * N);
 
     cc->EvalMultInPlace(raised, constantEvalMult);
 
@@ -2984,7 +2985,7 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext) {
         cc->EvalAddInPlace(ctxtEnc, ctxtEncI);
 
         // scale the message back up after Chebyshev interpolation
-        algo->MultByIntegerInPlace(ctxtEnc, scalar);
+        // algo->MultByIntegerInPlace(ctxtEnc, scalar); // Andreea: no need, scalar = 1.0
 
         std::cerr << "ctxtEnc levels: " << ctxtEnc->GetLevel() << " and depth: " << ctxtEnc->GetNoiseScaleDeg()
                   << std::endl;
@@ -3013,6 +3014,11 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext) {
 
         // Only one linear transform is needed
         ctxtDec = (isLTBootstrap) ? EvalLinearTransform(m_U0Pre, ctxtEnc) : EvalSlotsToCoeffs(m_U0PreFFT, ctxtEnc);
+
+        // Because the linear transform might be scaled differently, we might need to scale up the result separately
+        if (postScaling > 1) {
+            algo->MultByIntegerInPlace(ctxtDec, postScaling);
+        }
 
         std::cerr << "ctxtDec levels: " << ctxtDec->GetLevel() << " and depth: " << ctxtDec->GetNoiseScaleDeg()
                   << std::endl;
@@ -3095,7 +3101,7 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext) {
         }
 
         // scale the message back up after Chebyshev interpolation
-        algo->MultByIntegerInPlace(ctxtEnc, scalar);
+        // algo->MultByIntegerInPlace(ctxtEnc, scalar); // Andreea: no need, scalar = 1.0
 
 #ifdef BOOTSTRAPTIMING
         timeModReduce = TOC(t);
@@ -3121,19 +3127,23 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext) {
         // linear transform for decoding
         ctxtDec = (isLTBootstrap) ? EvalLinearTransform(m_U0Pre, ctxtEnc) : EvalSlotsToCoeffs(m_U0PreFFT, ctxtEnc);
 
+        // Because the linear transform might be scaled differently, we might need to scale up the result separately
+        if (postScaling > 1) {
+            algo->MultByIntegerInPlace(ctxtDec, postScaling);
+        }
+
         cc->EvalAddInPlace(ctxtDec, cc->EvalRotate(ctxtDec, slots));
 
         std::cerr << "after slotstocoeff sparse" << std::endl;
     }
 
 #if NATIVEINT != 128
+    // Andreea: this is not necessary
     // // 64-bit only: scale back the message to its original scale.
     // // uint64_t corFactor = (uint64_t)1 << std::llround(correction);
     // // algo->MultByIntegerInPlace(ctxtDec, corFactor);
     // if (m_correctionFactor != 100) {
     //     // 64-bit only: scale back the message to its original scale.
-    // uint64_t corFactor = (uint64_t)1 << std::llround(correction); // Andreea: for FIXED only at the moment in the normal bootstrapping. For functional bootstrapping mod2, it seems it is not needed.
-    // algo->MultByIntegerInPlace(ctxtDec, corFactor);
     // }
 #endif
 
@@ -3145,11 +3155,6 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext) {
 
     auto bootstrappingNumTowers = ctxtDec->GetElements()[0].GetNumOfElements();
     std::cerr << "bootstrappingNumTowers: " << bootstrappingNumTowers << ", initSizeQ: " << initSizeQ << std::endl;
-
-    // // If we start with more towers, than we obtain from bootstrapping, return the original ciphertext. // Andreea: here we don't need this
-    // if (bootstrappingNumTowers <= initSizeQ) {
-    //     return ciphertext->Clone();
-    // }
 
     return ctxtDec;
 }
@@ -3190,7 +3195,7 @@ void Floor() {
 
     std::vector<uint32_t> levelBudget = {1, 1};
 
-    uint32_t levelsAvailableAfterBootstrap = 2;
+    uint32_t levelsAvailableAfterBootstrap = 1;
     usint depth                            = levelsAvailableAfterBootstrap + 9;
     parameters.SetMultiplicativeDepth(depth);
 
@@ -3203,7 +3208,7 @@ void Floor() {
     cryptoContext->Enable(FHE);
 
     usint ringDim = cryptoContext->GetRingDimension();
-    std::cout << "CKKS scheme is using ring dimension " << ringDim << std::endl << std::endl;
+    std::cout << "CKKS scheme is using ring dimension " << ringDim << " and depth " << depth << std::endl << std::endl;
 
     auto keyPair = cryptoContext->KeyGen();
     cryptoContext->EvalMultKeyGen(keyPair.secretKey);
@@ -3224,7 +3229,7 @@ void Floor() {
     // for internal downscaling (scalar multiplication)
     // so that the sine wave approximation of modular reduction
     // could achieve reasonable precision
-    Plaintext ptxt = cryptoContext->MakeCKKSPackedPlaintext(y, 1, depth - 1);
+    Plaintext ptxt = cryptoContext->MakeCKKSPackedPlaintext(y, 1, depth - levelsAvailableAfterBootstrap + 1);
     ptxt->SetLength(numSlots);
     Ciphertext<DCRTPoly> ctxt = cryptoContext->Encrypt(keyPair.publicKey, ptxt);
     std::cerr << "Initial CKKS ciphertext levels: " << ctxt->GetLevel() << " and depth: " << ctxt->GetNoiseScaleDeg()
@@ -3235,16 +3240,15 @@ void Floor() {
     // auto elementParams = cryptoParams->GetElementParams(); // Andreea: this still takes the full chain of moduli
     auto elementParams = ptxt->GetElement<DCRTPoly>().GetParams();
 
-    auto BigQCKKS = elementParams->GetModulus();
-    std::cerr << "\nBigQCKKS: " << BigQCKKS << std::endl << std::endl;
+    auto qPrimeCKKS = elementParams->GetModulus();
+    std::cerr << "\nqPrimeCKKS: " << qPrimeCKKS << std::endl << std::endl;
 
     // =======Step 2. Encrypting and decrypting using BFV-like encryption=======
     BigInteger Q("1152921504606846976");  // 2^60
     BigInteger p("1048576");              // 2^20
-
     std::cerr << "\nBigQBFV: " << Q << std::endl << std::endl;
 
-    std::vector<int64_t> x = {0, 1, 2, 3, 16, 32, 64, 128};
+    std::vector<int64_t> x = {0, 1, 2, 3, 16, 33, 64, 1048575};
 
     std::cerr << "Plaintext before BFV encryption: " << x << std::endl;
 
@@ -3255,7 +3259,6 @@ void Floor() {
     // This creates BFV ciphertext with the ciphertext modulus corresponding to the last two limbs
     auto ctxtBFV   = EncryptBFVCoeff(x, Q, p, keyPair.secretKey, elementParams);
     auto decrypted = DecryptBFVCoeff(ctxtBFV, Q, p, keyPair.secretKey, elementParams, numSlots);
-
     std::cerr << "Plaintext after BFV encryption + decryption: " << decrypted << std::endl;
 
     // =======Step 3. Changing (\log Q, \log p) from  (41,60) to (41,2), i.e., doing mod q=======
@@ -3271,13 +3274,17 @@ void Floor() {
 
     // decrypted = DecryptBFVCoeff(encrypted, Bigq, pNew, keyPair.secretKey, numSlots);
     decrypted = DecryptBFVCoeff(encryptedDigit, Bigq, pNew, keyPair.secretKey, elementParams, numSlots);
-
     std::cerr << "Plaintext after BFV decryption of ciphertext mod q: " << decrypted << std::endl;
 
     // =======Step 4. Populate CKKS ciphertext from the BFV ciphertext=======
-
-    auto elementsCKKS = ModSwitchUp(encryptedDigit, Bigq, BigQCKKS, elementParams);
-    auto ctxtNew      = ctxt->Clone();
+    std::vector<lbcrypto::DCRTPoly> elementsCKKS(2);
+    if (qPrimeCKKS > Bigq) {
+        elementsCKKS = ModSwitchUp(encryptedDigit, Bigq, qPrimeCKKS, elementParams);
+    }
+    else {
+        elementsCKKS = ModSwitchDown(encryptedDigit, Bigq, qPrimeCKKS, elementParams);
+    }
+    auto ctxtNew = ctxt->Clone();
     ctxtNew->SetElements(elementsCKKS);
     // ctxt->SetElements(elementsCKKS);
     std::cerr << "Number of elements of populated ciphertext: " << ctxtNew->GetElements()[0].GetNumOfElements()
@@ -3289,9 +3296,12 @@ void Floor() {
 
     Plaintext result;
     // cryptoContext->Decrypt(keyPair.secretKey, ctxt, &result);
-    // result->SetLength(encodedLength);
+    // result->SetLength(numSlots);
     // std::cout << "\n Decrypting CKKS initial ciphertext" << result << std::endl;
     // std::cout << "Decrypting BFV ciphertext switched to CKKS GetElement<Poly> = " << result->GetElement<Poly>() << std::endl;
+
+    auto initial = DecryptCKKSCoeff({ctxt->GetElements()[0], ctxt->GetElements()[1]}, keyPair.secretKey, numSlots);
+    std::cerr << "Decrypting CKKS initial ciphertext: " << initial << std::endl;
 
     auto output = DecryptCKKSCoeff(elementsCKKS, keyPair.secretKey, numSlots);
     std::cerr << "Decrypting BFV ciphertext switched to CKKS: " << output << std::endl;
@@ -3304,43 +3314,51 @@ void Floor() {
 
     // =======Step 5. Bootstrap the digit=======
 
-    // Initial sanity check
+    /*// Initial sanity check
     cryptoContext->EvalBootstrapSetup(levelBudget, {0, 0}, numSlots, 0);
     cryptoContext->EvalBootstrapKeyGen(keyPair.secretKey, numSlots);
     auto ctxtAfterBT = cryptoContext->EvalBootstrap(ctxtNew);
+
+    cryptoContext->ModReduceInPlace(ctxtAfterBT);
+    std::cout << "Number of levels remaining: "
+              << depth - ctxtAfterBT->GetLevel() + 1 - ctxtAfterBT->GetNoiseScaleDeg() << std::endl;
+    std::cout << "CKKS modulus after func bootstrapping: " << ctxtAfterBT->GetElements()[0].GetModulus() << ", "
+              << ctxtAfterBT->GetElements()[0].GetWorkingModulus() << std::endl;
 
     auto vec3 = DecryptWithoutDecode(*cryptoContext, ctxtAfterBT, keyPair.secretKey, numSlots,
                                      cryptoContext->GetRingDimension(), true);
     std::cerr << "\nDecrypted bootstrapped digit without decoding: " << vec3 << std::endl;
 
+    elementsCKKS[0] = ctxtAfterBT->GetElements()[0];
+    elementsCKKS[1] = ctxtAfterBT->GetElements()[1];
+
+    output = DecryptCKKSCoeff(elementsCKKS, keyPair.secretKey, numSlots);
+    std::cerr << "Decrypting bootstrapped digit without scaling: " << output << std::endl;
+
     cryptoContext->Decrypt(keyPair.secretKey, ctxtAfterBT, &result);
     result->SetLength(numSlots);
     std::cout << "\nFull decryption bootstrapped digit" << result << std::endl;
 
-    std::cerr << "Bootstrapped CKKS ciphertext levels: " << ctxtAfterBT->GetLevel()
-              << " and depth: " << ctxtAfterBT->GetNoiseScaleDeg() << std::endl;
-    std::cout << "Number of levels remaining: " << depth - ctxtAfterBT->GetLevel() + 1 - ctxtAfterBT->GetNoiseScaleDeg()
-              << std::endl
-              << std::endl;
-
     std::cerr << "Initial CKKS ciphertext levels: " << ctxt->GetLevel() << " and depth: " << ctxt->GetNoiseScaleDeg()
               << std::endl;
+    */
 
-    // double scaleMod = (BigQCKKS.ConvertToDouble() / cryptoParams->GetElementParams()->GetParams()[0]->GetModulus().ConvertToDouble()) / p.ConvertToDouble();
-    double scaleMod = 1.0;
+    // The scaling done in decoding needs to align the CKKS ciphertext after bootstrapping with the BFV ciphertext
+    BigInteger QPrime = keyPair.publicKey->GetPublicElements()[0].GetParams()->GetParams()[0]->GetModulus();
+    uint32_t cnt      = 1;
+    while (levelsAvailableAfterBootstrap > 1) {
+        QPrime *= keyPair.publicKey->GetPublicElements()[0].GetParams()->GetParams()[cnt]->GetModulus();
+        levelsAvailableAfterBootstrap--;
+    }
+    std::cerr << "QPrime: " << QPrime << std::endl;
+    double scaleMod = QPrime.ConvertToDouble() / (Bigq.ConvertToDouble() * p.ConvertToDouble());
+    // double scaleMod = 1.0 / pNew.ConvertToDouble(); // For fresh CKKS ciphertexts, not originating from BFV
+    // scaleMod = (scaleMod > 1) ? scaleMod : 1.0;
     std::cerr << "scaleMod = " << scaleMod << std::endl;
     EvalFuncBTSetup(*cryptoContext, numSlots, {0, 0}, levelBudget, scaleMod);
     EvalFuncBTKeyGen(keyPair.secretKey, numSlots);
-    auto ctxtAfterFuncBT = EvalFuncBT(ctxtNew);
 
-    auto vec2 = DecryptWithoutDecode(*cryptoContext, ctxtAfterFuncBT, keyPair.secretKey, numSlots,
-                                     cryptoContext->GetRingDimension(), true);
-
-    std::cerr << "\nDecrypted func bootstrapped digit without decoding: " << vec2 << std::endl;
-
-    cryptoContext->Decrypt(keyPair.secretKey, ctxtAfterFuncBT, &result);
-    result->SetLength(numSlots);
-    std::cout << "\nFull decryption func bootstrapped digit " << result << std::endl;
+    auto ctxtAfterFuncBT = EvalFuncBT(ctxtNew, qPrimeCKKS, 1);
 
     cryptoContext->ModReduceInPlace(ctxtAfterFuncBT);
     std::cout << "Number of levels remaining: "
@@ -3348,9 +3366,28 @@ void Floor() {
     std::cout << "CKKS modulus after func bootstrapping: " << ctxtAfterFuncBT->GetElements()[0].GetModulus() << ", "
               << ctxtAfterFuncBT->GetElements()[0].GetWorkingModulus() << std::endl;
 
-    vec2 = DecryptWithoutDecode(*cryptoContext, ctxtNew, keyPair.secretKey, numSlots, cryptoContext->GetRingDimension(),
-                                true);
-    std::cerr << "\nDecrypted initial without decoding: " << vec2 << std::endl << std::endl;
+    if (QPrime != ctxtAfterFuncBT->GetElements()[0].GetModulus()) {
+        OPENFHE_THROW("The ciphertext modulus after bootstrapping is not as expected.");
+    }
+
+    auto vec2 = DecryptWithoutDecode(*cryptoContext, ctxtAfterFuncBT, keyPair.secretKey, numSlots,
+                                     cryptoContext->GetRingDimension(), true);
+
+    std::cerr << "\nDecrypted func bootstrapped digit without decoding: " << vec2 << std::endl;
+
+    elementsCKKS[0] = ctxtAfterFuncBT->GetElements()[0];
+    elementsCKKS[1] = ctxtAfterFuncBT->GetElements()[1];
+
+    output = DecryptCKKSCoeff(elementsCKKS, keyPair.secretKey, numSlots);
+    std::cerr << "Decrypting func bootstrapped digit without scaling: " << output << std::endl;
+
+    cryptoContext->Decrypt(keyPair.secretKey, ctxtAfterFuncBT, &result);
+    result->SetLength(numSlots);
+    std::cout << "\nFull decryption func bootstrapped digit " << result << std::endl;
+
+    // vec2 = DecryptWithoutDecode(*cryptoContext, ctxtNew, keyPair.secretKey, numSlots, cryptoContext->GetRingDimension(),
+    //                             true);
+    // std::cerr << "\nDecrypted initial without decoding: " << vec2 << std::endl << std::endl;
 
     // =======Step 6. Modulus switch to align with the initial BFV ciphertext=======
 
@@ -3364,11 +3401,20 @@ void Floor() {
     auto bPoly = b.CRTInterpolate();
 
     // Do modulus switching from Q' to Q
-    bPoly = bPoly.MultiplyAndRound(Q, BigQCKKS);
-    bPoly.SwitchModulus(Q, 1, 0, 0);
+    if (Q < QPrime) {
+        bPoly = bPoly.MultiplyAndRound(Q, QPrime);
+        bPoly.SwitchModulus(Q, 1, 0, 0);
 
-    aPoly = aPoly.MultiplyAndRound(Q, BigQCKKS);
-    aPoly.SwitchModulus(Q, 1, 0, 0);
+        aPoly = aPoly.MultiplyAndRound(Q, QPrime);
+        aPoly.SwitchModulus(Q, 1, 0, 0);
+    }
+    else {
+        bPoly.SwitchModulus(Q, 1, 0, 0);
+        bPoly = bPoly.MultiplyAndRound(Q, QPrime);
+
+        aPoly.SwitchModulus(Q, 1, 0, 0);
+        aPoly = aPoly.MultiplyAndRound(Q, QPrime);
+    }
 
     auto bPolyNew = ctxtBFV[0] - bPoly;
     auto aPolyNew = ctxtBFV[1] - aPoly;
@@ -3380,8 +3426,276 @@ void Floor() {
     std::cerr << "\nPlaintext after BFV decryption of ciphertext mod Q: " << decrypted << std::endl;
 }
 
+void Sign() {
+    CCParams<CryptoContextCKKSRNS> parameters;
+    SecretKeyDist secretKeyDist = SPARSE_TERNARY;
+    parameters.SetSecretKeyDist(secretKeyDist);
+    parameters.SetSecurityLevel(HEStd_NotSet);
+    parameters.SetRingDim(16);
+
+    uint32_t dcrtBits = 41;
+    uint32_t firstMod = 41;
+    uint32_t numSlots = 8;
+
+    parameters.SetScalingModSize(dcrtBits);
+    parameters.SetScalingTechnique(FIXEDMANUAL);
+    parameters.SetFirstModSize(firstMod);
+    parameters.SetNumLargeDigits(3);
+    parameters.SetBatchSize(numSlots);
+
+    std::vector<uint32_t> levelBudget = {1, 1};
+
+    uint32_t levelsAvailableAfterBootstrap = 1;
+    usint depth                            = levelsAvailableAfterBootstrap + 9;
+    parameters.SetMultiplicativeDepth(depth);
+
+    CryptoContext<DCRTPoly> cryptoContext = GenCryptoContext(parameters);
+
+    cryptoContext->Enable(PKE);
+    cryptoContext->Enable(KEYSWITCH);
+    cryptoContext->Enable(LEVELEDSHE);
+    cryptoContext->Enable(ADVANCEDSHE);
+    cryptoContext->Enable(FHE);
+
+    usint ringDim = cryptoContext->GetRingDimension();
+    std::cout << "CKKS scheme is using ring dimension " << ringDim << " and depth " << depth << std::endl << std::endl;
+
+    auto keyPair = cryptoContext->KeyGen();
+    cryptoContext->EvalMultKeyGen(keyPair.secretKey);
+
+    // BFV parameters
+    BigInteger Q("1152921504606846976");  // 2^60
+    BigInteger p("1048576");              // 2^20
+    // BigInteger Bigq          = BigInteger("35184372088832"); // Mod 2^45
+    BigInteger Bigq = BigInteger("2199023255552");  // Mod 2^41
+    BigInteger pNew("2");                           // 2
+
+    // More CKKS parameters
+    // The scaling done in decoding needs to align the CKKS ciphertext after bootstrapping with the BFV ciphertext
+    BigInteger QPrime = keyPair.publicKey->GetPublicElements()[0].GetParams()->GetParams()[0]->GetModulus();
+    uint32_t cnt      = 1;
+    while (levelsAvailableAfterBootstrap > 1) {
+        QPrime *= keyPair.publicKey->GetPublicElements()[0].GetParams()->GetParams()[cnt]->GetModulus();
+        levelsAvailableAfterBootstrap--;
+    }
+    std::cerr << "QPrime: " << QPrime << std::endl;
+    double scaleMod = QPrime.ConvertToDouble() / (Bigq.ConvertToDouble() * p.ConvertToDouble());
+    // double scaleMod = 1.0 / pNew.ConvertToDouble(); // For fresh CKKS ciphertexts, not originating from BFV
+    std::cerr << "scaleMod = " << scaleMod << std::endl;
+    EvalFuncBTSetup(*cryptoContext, numSlots, {0, 0}, levelBudget, scaleMod);
+    EvalFuncBTKeyGen(keyPair.secretKey, numSlots);
+
+    // =======Step 1. Create a CKKS ciphertext with proper metadata=======
+    // We create the ciphertext modulus to be used in BFV
+
+    // std::vector<double> y = {0.0, 1.0, 0.0, 1.0};
+    // std::vector<std::complex<double>> y = { std::exp(Pi*1i/8.0) + std::exp(Pi*3i/8.0), std::exp(Pi*5i/8.0) + std::exp(Pi*15i/8.0), std::exp(Pi*9i/8.0) + std::exp(Pi*27i/8.0), std::exp(Pi*13i/8.0) + std::exp(Pi*39i/8.0)};
+    // std::vector<double> y = {0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0};
+    std::vector<std::complex<double>> y = {
+        std::exp(Pi * 1i / 16.0) + std::exp(Pi * 3i / 16.0),   std::exp(Pi * 5i / 16.0) + std::exp(Pi * 15i / 16.0),
+        std::exp(Pi * 25i / 16.0) + std::exp(Pi * 75i / 16.0), std::exp(Pi * 29i / 16.0) + std::exp(Pi * 87i / 16.0),
+        std::exp(Pi * 17i / 16.0) + std::exp(Pi * 51i / 16.0), std::exp(Pi * 21i / 16.0) + std::exp(Pi * 63i / 16.0),
+        std::exp(Pi * 9i / 16.0) + std::exp(Pi * 27i / 16.0),  std::exp(Pi * 13i / 16.0) + std::exp(Pi * 39i / 16.0)};
+    std::cerr << "y = " << y << std::endl;
+    // depth - 1 means we have two RNS limbs here; we need to the second limb
+    // for internal downscaling (scalar multiplication)
+    // so that the sine wave approximation of modular reduction
+    // could achieve reasonable precision
+    Plaintext ptxt = cryptoContext->MakeCKKSPackedPlaintext(y, 1, depth - levelsAvailableAfterBootstrap + 1);
+    ptxt->SetLength(numSlots);
+    Ciphertext<DCRTPoly> ctxt = cryptoContext->Encrypt(keyPair.publicKey, ptxt);
+    std::cerr << "Initial CKKS ciphertext levels: " << ctxt->GetLevel() << " and depth: " << ctxt->GetNoiseScaleDeg()
+              << std::endl;
+
+    // Switch encryped digit from q to q'
+    const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ctxt->GetCryptoParameters());
+    // auto elementParams = cryptoParams->GetElementParams(); // Andreea: this still takes the full chain of moduli
+    auto elementParams = ptxt->GetElement<DCRTPoly>().GetParams();
+
+    auto qPrimeCKKS = elementParams->GetModulus();
+    std::cerr << "\nqPrimeCKKS: " << qPrimeCKKS << std::endl << std::endl;
+
+    // =======Step 2. Encrypting and decrypting using BFV-like encryption=======
+    std::cerr << "\nBigQBFV: " << Q << std::endl << std::endl;
+
+    std::vector<int64_t> x = {524288, 1, 2, 3, 16, 33, 64, 1048575};
+
+    std::cerr << "Plaintext before BFV encryption: " << x << std::endl;
+
+    // // This creates BFV ciphertext with the full CKKS modulus - we don't need that
+    // auto ctxtBFV = EncryptBFVCoeff(x, Q, p, keyPair.secretKey);
+    // auto decrypted = DecryptBFVCoeff(encrypted, Q, p, keyPair.secretKey, numSlots);
+
+    // This creates BFV ciphertext with the ciphertext modulus corresponding to the last two limbs
+    auto ctxtBFV   = EncryptBFVCoeff(x, Q, p, keyPair.secretKey, elementParams);
+    auto decrypted = DecryptBFVCoeff(ctxtBFV, Q, p, keyPair.secretKey, elementParams, numSlots);
+    std::cerr << "Plaintext after BFV encryption + decryption: " << decrypted << std::endl;
+
+    // =======Start sign loop=======
+
+    double QBFVDouble   = Q.ConvertToDouble();
+    double pBFVDouble   = p.ConvertToDouble();
+    double pDigitDouble = pNew.ConvertToDouble();
+    double qDigitDouble = Bigq.ConvertToDouble();
+    BigInteger pOrig    = p;
+
+    uint32_t iter = 0;
+    while (QBFVDouble > qDigitDouble) {
+        std::cerr << "\n=======Iteration " << iter << "=======\n";
+
+        // =======Step 3. Changing (\log Q, \log p) from  (41,60) to (41,2), i.e., doing mod q=======
+
+        auto encryptedDigit = ctxtBFV;
+
+        // Apply mod q
+        encryptedDigit[0].SwitchModulus(Bigq, 1, 0, 0);
+        encryptedDigit[1].SwitchModulus(Bigq, 1, 0, 0);
+
+        // decrypted = DecryptBFVCoeff(encrypted, Bigq, pNew, keyPair.secretKey, numSlots);
+        decrypted = DecryptBFVCoeff(encryptedDigit, Bigq, pNew, keyPair.secretKey, elementParams, numSlots);
+        std::cerr << "Plaintext after BFV decryption of ciphertext mod q: " << decrypted << std::endl;
+
+        // =======Step 4. Populate CKKS ciphertext from the BFV ciphertext=======
+        std::vector<lbcrypto::DCRTPoly> elementsCKKS(2);
+        if (qPrimeCKKS > Bigq) {
+            elementsCKKS = ModSwitchUp(encryptedDigit, Bigq, qPrimeCKKS, elementParams);
+        }
+        else {
+            elementsCKKS = ModSwitchDown(encryptedDigit, Bigq, qPrimeCKKS, elementParams);
+        }
+        auto ctxtNew = ctxt->Clone();
+        ctxtNew->SetElements(elementsCKKS);
+        // ctxt->SetElements(elementsCKKS);
+        std::cerr << "Number of elements of populated ciphertext: " << ctxtNew->GetElements()[0].GetNumOfElements()
+                  << std::endl;
+        std::cerr << "Populated CKKS ciphertext levels: " << ctxtNew->GetLevel()
+                  << " and depth: " << ctxtNew->GetNoiseScaleDeg() << std::endl;
+
+        // =======Check decryption correctness=======
+
+        Plaintext result;
+        // cryptoContext->Decrypt(keyPair.secretKey, ctxt, &result);
+        // result->SetLength(numSlots);
+        // std::cout << "\n Decrypting CKKS initial ciphertext" << result << std::endl;
+        // std::cout << "Decrypting BFV ciphertext switched to CKKS GetElement<Poly> = " << result->GetElement<Poly>() << std::endl;
+
+        auto initial = DecryptCKKSCoeff({ctxt->GetElements()[0], ctxt->GetElements()[1]}, keyPair.secretKey, numSlots);
+        std::cerr << "Decrypting CKKS initial ciphertext: " << initial << std::endl;
+
+        auto output = DecryptCKKSCoeff(elementsCKKS, keyPair.secretKey, numSlots);
+        std::cerr << "Decrypting BFV ciphertext switched to CKKS: " << output << std::endl;
+
+        auto vec1 = DecryptWithoutDecode(*cryptoContext, ctxtNew, keyPair.secretKey, numSlots,
+                                         cryptoContext->GetRingDimension(), false);
+        std::cerr << "\nDecrypt without decoding switched to CKKS: " << std::setprecision(15) << vec1 << std::endl;
+
+        std::cout << "\nInitial number of levels remaining: " << depth - ctxtNew->GetLevel() << std::endl;
+
+        // =======Step 5. Bootstrap the digit=======
+
+        // scaleMod = QPrime.ConvertToDouble() / (Bigq.ConvertToDouble() * p.ConvertToDouble());
+        // double scaleMod = 1.0 / pNew.ConvertToDouble(); // For fresh CKKS ciphertexts, not originating from BFV
+        // std::cerr << "scaleMod = " << scaleMod << std::endl;
+
+        // Andreea: to not have to modify the decoding matrix, we multiply the BFV ciphertext by pOrig/pNew
+        auto ctxtAfterFuncBT = EvalFuncBT(ctxtNew, qPrimeCKKS, pOrig.ConvertToDouble() / pBFVDouble);
+
+        cryptoContext->ModReduceInPlace(ctxtAfterFuncBT);
+        std::cout << "Number of levels remaining: "
+                  << depth - ctxtAfterFuncBT->GetLevel() + 1 - ctxtAfterFuncBT->GetNoiseScaleDeg() << std::endl;
+        std::cout << "CKKS modulus after func bootstrapping: " << ctxtAfterFuncBT->GetElements()[0].GetModulus() << ", "
+                  << ctxtAfterFuncBT->GetElements()[0].GetWorkingModulus() << std::endl;
+
+        if (QPrime != ctxtAfterFuncBT->GetElements()[0].GetModulus()) {
+            OPENFHE_THROW("The ciphertext modulus after bootstrapping is not as expected.");
+        }
+
+        auto vec2 = DecryptWithoutDecode(*cryptoContext, ctxtAfterFuncBT, keyPair.secretKey, numSlots,
+                                         cryptoContext->GetRingDimension(), true);
+
+        std::cerr << "\nDecrypted func bootstrapped digit without decoding: " << vec2 << std::endl;
+
+        elementsCKKS[0] = ctxtAfterFuncBT->GetElements()[0];
+        elementsCKKS[1] = ctxtAfterFuncBT->GetElements()[1];
+
+        output = DecryptCKKSCoeff(elementsCKKS, keyPair.secretKey, numSlots);
+        std::cerr << "Decrypting func bootstrapped digit without scaling: " << output << std::endl;
+
+        cryptoContext->Decrypt(keyPair.secretKey, ctxtAfterFuncBT, &result);
+        result->SetLength(numSlots);
+        std::cout << "\nFull decryption func bootstrapped digit " << result << std::endl;
+
+        // vec2 = DecryptWithoutDecode(*cryptoContext, ctxtNew, keyPair.secretKey, numSlots, cryptoContext->GetRingDimension(),
+        //                             true);
+        // std::cerr << "\nDecrypted initial without decoding: " << vec2 << std::endl << std::endl;
+
+        // =======Step 6. Modulus switch to align with the initial BFV ciphertext=======
+
+        // Go from Q' (larger) to Q. This changes the message scaling, so we need to set scaleMod above by Q'/(q'*p)
+        auto b = ctxtAfterFuncBT->GetElements()[0];
+        auto a = ctxtAfterFuncBT->GetElements()[1];
+        a.SetFormat(Format::COEFFICIENT);
+        b.SetFormat(Format::COEFFICIENT);
+
+        auto aPoly = a.CRTInterpolate();
+        auto bPoly = b.CRTInterpolate();
+
+        // Do modulus switching from Q' to Q
+        if (Q < QPrime) {
+            bPoly = bPoly.MultiplyAndRound(Q, QPrime);
+            bPoly.SwitchModulus(Q, 1, 0, 0);
+
+            aPoly = aPoly.MultiplyAndRound(Q, QPrime);
+            aPoly.SwitchModulus(Q, 1, 0, 0);
+        }
+        else {
+            bPoly.SwitchModulus(Q, 1, 0, 0);
+            bPoly = bPoly.MultiplyAndRound(Q, QPrime);
+
+            aPoly.SwitchModulus(Q, 1, 0, 0);
+            aPoly = aPoly.MultiplyAndRound(Q, QPrime);
+        }
+
+        ctxtBFV[0] = ctxtBFV[0] - bPoly;
+        ctxtBFV[1] = ctxtBFV[1] - aPoly;
+
+        decrypted = DecryptBFVCoeff({bPoly, aPoly}, Q, p, keyPair.secretKey, elementParams, numSlots);
+        std::cerr << "\nPlaintext after BFV decryption of digit mod Q: " << decrypted << std::endl;
+
+        decrypted = DecryptBFVCoeff(ctxtBFV, Q, p, keyPair.secretKey, elementParams, numSlots);
+        std::cerr << "\nPlaintext after BFV decryption of ciphertext mod Q: " << decrypted << std::endl;
+
+        BigInteger QNew(std::to_string(static_cast<uint64_t>(QBFVDouble / pDigitDouble)));
+        BigInteger PNew(std::to_string(static_cast<uint64_t>(pBFVDouble / pDigitDouble)));
+        std::cerr << "QNew = " << QNew << std::endl;
+
+        // Do modulus switching from Q to QNew for the BFV ciphertext
+        ctxtBFV[0] = ctxtBFV[0].MultiplyAndRound(QNew, Q);
+        ctxtBFV[0].SwitchModulus(QNew, 1, 0, 0);
+
+        ctxtBFV[1] = ctxtBFV[1].MultiplyAndRound(QNew, Q);
+        ctxtBFV[1].SwitchModulus(QNew, 1, 0, 0);
+
+        decrypted = DecryptBFVCoeff(ctxtBFV, QNew, PNew, keyPair.secretKey, elementParams, numSlots);
+        std::cerr << "\nPlaintext after BFV decryption of digit mod Q/pDigit: " << decrypted << std::endl;
+
+        QBFVDouble /= pDigitDouble;
+        pBFVDouble /= pDigitDouble;
+        Q = QNew;
+        p = PNew;
+        iter++;
+
+        // if (iter == 2) {
+        //     return;
+        // }
+
+        // Andreea: for arbitrary digit size, pNew, the last iteration might be different
+    }
+}
+
 int main(int argc, char* argv[]) {
     // SimpleBootstrapExample();
     // TestModApprox();
-    Floor();
+    // Floor();
+    Sign();
 }
