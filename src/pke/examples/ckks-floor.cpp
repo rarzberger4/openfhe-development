@@ -347,6 +347,7 @@ std::vector<Poly> EncryptBFVCoeff(std::vector<int64_t> input, BigInteger Q, BigI
     mPoly.SetValuesToZero();
 
     BigInteger delta = Q / p;
+    uint32_t gap     = mPoly.GetLength() / (2.0 * input.size());
 
     for (size_t i = 0; i < input.size() && i < mPoly.GetLength(); i++) {
         BigInteger entry{input[i]};
@@ -354,7 +355,7 @@ std::vector<Poly> EncryptBFVCoeff(std::vector<int64_t> input, BigInteger Q, BigI
         if (input[i] < 0) {
             entry = mPoly.GetModulus() - BigInteger(static_cast<uint64_t>(llabs(input[i])));
         }
-        mPoly[i] = delta * entry;
+        mPoly[i * gap] = delta * entry;
     }
 
     bPoly += mPoly;  // Adds the message
@@ -416,6 +417,7 @@ std::vector<Poly> EncryptBFVCoeff(std::vector<int64_t> input, BigInteger Q, BigI
     mPoly.SetValuesToZero();
 
     BigInteger delta = Q / p;
+    uint32_t gap     = mPoly.GetLength() / (2.0 * input.size());
 
     for (size_t i = 0; i < input.size() && i < mPoly.GetLength(); i++) {
         BigInteger entry{input[i]};
@@ -423,7 +425,7 @@ std::vector<Poly> EncryptBFVCoeff(std::vector<int64_t> input, BigInteger Q, BigI
         if (input[i] < 0) {
             entry = mPoly.GetModulus() - BigInteger(static_cast<uint64_t>(llabs(input[i])));
         }
-        mPoly[i] = delta * entry;
+        mPoly[i * gap] = delta * entry;
     }
 
     bPoly += mPoly;  // Adds the message
@@ -459,7 +461,8 @@ std::vector<int64_t> DecryptBFVCoeff(const std::vector<Poly>& input, BigInteger 
 
     m.SetFormat(Format::COEFFICIENT);
 
-    auto mPoly = m.CRTInterpolate();
+    auto mPoly   = m.CRTInterpolate();
+    uint32_t gap = mPoly.GetLength() / (2 * numSlots);
 
     std::cerr << "\nmPolys BFV:" << std::endl;
     for (size_t i = 0; i < numSlots; i++) {
@@ -477,13 +480,13 @@ std::vector<int64_t> DecryptBFVCoeff(const std::vector<Poly>& input, BigInteger 
 
     std::vector<int64_t> output(numSlots);
 
-    for (size_t i = 0; i < output.size(); i++) {
+    for (size_t i = 0, idx = 0; i < numSlots; ++i, idx += gap) {
         int64_t val;
-        if (mPoly[i] > half) {
-            val = (-(p - mPoly[i]).ConvertToInt());
+        if (mPoly[idx] > half) {
+            val = (-(p - mPoly[idx]).ConvertToInt());
         }
         else {
-            val = mPoly[i].ConvertToInt();
+            val = mPoly[idx].ConvertToInt();
         }
         output[i] = val;
     }
@@ -517,10 +520,11 @@ std::vector<int64_t> DecryptBFVCoeff(const std::vector<Poly>& input, BigInteger 
 
     m.SetFormat(Format::COEFFICIENT);
 
-    auto mPoly = m.CRTInterpolate();
+    auto mPoly   = m.CRTInterpolate();
+    uint32_t gap = mPoly.GetLength() / (2 * numSlots);
 
     std::cerr << "\nmPolys BFV:" << std::endl;
-    for (size_t i = 0; i < numSlots; i++) {
+    for (size_t i = 0; i < mPoly.GetLength() / 2; i++) {
         std::cerr << mPoly[i] << " ";
     }
     std::cerr << "\n";
@@ -540,14 +544,13 @@ std::vector<int64_t> DecryptBFVCoeff(const std::vector<Poly>& input, BigInteger 
     BigInteger half = p >> 1;
 
     std::vector<int64_t> output(numSlots);
-
-    for (size_t i = 0; i < output.size(); i++) {
+    for (size_t i = 0, idx = 0; i < numSlots; ++i, idx += gap) {
         int64_t val;
-        if (mPoly[i] > half) {
-            val = (-(p - mPoly[i]).ConvertToInt());
+        if (mPoly[idx] > half) {
+            val = (-(p - mPoly[idx]).ConvertToInt());
         }
         else {
-            val = mPoly[i].ConvertToInt();
+            val = mPoly[idx].ConvertToInt();
         }
         output[i] = val;
     }
@@ -570,7 +573,7 @@ std::vector<double> DecryptCKKSCoeff(const std::vector<Poly>& input, BigInteger 
     auto mPoly = m.CRTInterpolate();
 
     std::cerr << "\nmPolys CKKS:" << std::endl;
-    for (size_t i = 0; i < numSlots; i++) {
+    for (size_t i = 0; i < mPoly.GetLength() / 2; i++) {
         std::cerr << mPoly[i] << " ";
     }
     std::cerr << "\n";
@@ -578,13 +581,23 @@ std::vector<double> DecryptCKKSCoeff(const std::vector<Poly>& input, BigInteger 
     BigInteger half = bigQPrime >> 1;
 
     std::vector<double> output(numSlots);
+    uint32_t gap = mPoly.GetLength() / (2 * numSlots);
 
-    for (size_t i = 0; i < output.size(); i++) {
-        if (mPoly[i] > half) {
-            output[i] = (-(bigQPrime - mPoly[i]).ConvertToDouble());
+    // for (size_t i = 0; i < output.size(); i++) {
+    //     if (mPoly[i] > half) {
+    //         output[i] = (-(bigQPrime - mPoly[i]).ConvertToDouble());
+    //     }
+    //     else {
+    //         output[i] = mPoly[i].ConvertToDouble();
+    //     }
+    // }
+
+    for (size_t i = 0, idx = 0; i < numSlots; ++i, idx += gap) {
+        if (mPoly[idx] > half) {
+            output[i] = (-(bigQPrime - mPoly[idx]).ConvertToDouble());
         }
         else {
-            output[i] = mPoly[i].ConvertToDouble();
+            output[i] = mPoly[idx].ConvertToDouble();
         }
     }
 
@@ -612,7 +625,7 @@ std::vector<double> DecryptCKKSCoeff(const std::vector<DCRTPoly>& input, const P
     auto mPoly = m.CRTInterpolate();
 
     std::cerr << "\nmPolys CKKS:" << std::endl;
-    for (size_t i = 0; i < numSlots; i++) {
+    for (size_t i = 0; i < mPoly.GetLength() / 2; i++) {
         std::cerr << mPoly[i] << " ";
     }
     std::cerr << "\n";
@@ -621,12 +634,23 @@ std::vector<double> DecryptCKKSCoeff(const std::vector<DCRTPoly>& input, const P
 
     std::vector<double> output(2 * numSlots);
 
-    for (size_t i = 0; i < output.size(); i++) {
-        if (mPoly[i] > half) {
-            output[i] = (-(QPrime - mPoly[i]).ConvertToDouble());
+    // for (size_t i = 0; i < output.size(); i++) {
+    //     if (mPoly[i] > half) {
+    //         output[i] = (-(QPrime - mPoly[i]).ConvertToDouble());
+    //     }
+    //     else {
+    //         output[i] = mPoly[i].ConvertToDouble();
+    //     }
+    // }
+
+    uint32_t gap = mPoly.GetLength() / (2 * numSlots);
+
+    for (size_t i = 0, idx = 0; i < 2 * numSlots; ++i, idx += gap) {
+        if (mPoly[idx] > half) {
+            output[i] = (-(QPrime - mPoly[idx]).ConvertToDouble());
         }
         else {
-            output[i] = mPoly[i].ConvertToDouble();
+            output[i] = mPoly[idx].ConvertToDouble();
         }
     }
 
@@ -1924,8 +1948,8 @@ void EvalFuncBTSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t numSlots, s
     double qDouble   = q.ConvertToDouble();
     uint128_t factor = ((uint128_t)1 << ((uint32_t)std::round(std::log2(qDouble))));
     double pre       = qDouble / factor;
-    std::cerr << "pre in setup = q / factor = " << pre << std::endl;
-    double k        = (cryptoParams->GetSecretKeyDist() == SPARSE_TERNARY) ? K_SPARSE : 1.0;
+    double k         = (cryptoParams->GetSecretKeyDist() == SPARSE_TERNARY) ? K_SPARSE : 1.0;
+    std::cerr << "pre in setup = q / factor = " << pre << ", k = " << k << std::endl;
     double scaleEnc = pre / k;
     // double scaleEnc  = scaleMod / k; // pre / k;
     // double scaleDec  = 1.0; // 1.0 / pre;
@@ -2758,7 +2782,7 @@ void AdjustCiphertext(Ciphertext<DCRTPoly>& ciphertext, double correction) {
 #if NATIVEINT != 128
         // Scaling down the message by a correction factor to emulate using a larger q0.
         // This step is needed so we could use a scaling factor of up to 2^59 with q9 ~= 2^60.
-        double adjustmentFactor = (targetSF / sourceSF) * (modToDrop / sourceSF) / correction;
+        double adjustmentFactor = (targetSF / sourceSF) * (modToDrop / sourceSF) * correction;
 #else
         double adjustmentFactor = (targetSF / sourceSF) * (modToDrop / sourceSF);
 #endif
@@ -2841,8 +2865,7 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, BigInteger
     double pre = 1. / post;
     uint64_t scalar = std::llround(post);
     */
-    // double correction = qDouble; // Andreea: this needs to be the ration between the initial scalingFactor and the desired CKKS scaling factor
-    double correction = initialScaling.ConvertToDouble() / cryptoParams->GetScalingFactorReal(0);
+    double correction = initialScaling.ConvertToDouble() / cryptoParams->GetScalingFactorReal(0);  // 1.0;
     std::cerr << "correction: " << correction << std::endl;
 
     //------------------------------------------------------------------------------
@@ -2894,7 +2917,7 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, BigInteger
     double k = 0;
 
     if (cryptoParams->GetSecretKeyDist() == SPARSE_TERNARY) {
-        coefficients = coeff_cos_12_mod2;
+        coefficients = coeff_cos_12_mod2;  // g_coefficientsSparse; //
         // k = K_SPARSE;
         k = 1.0;  // do not divide by k as we already did it during precomputation
     }
@@ -3127,12 +3150,12 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, BigInteger
         // linear transform for decoding
         ctxtDec = (isLTBootstrap) ? EvalLinearTransform(m_U0Pre, ctxtEnc) : EvalSlotsToCoeffs(m_U0PreFFT, ctxtEnc);
 
+        cc->EvalAddInPlace(ctxtDec, cc->EvalRotate(ctxtDec, slots));
+
         // Because the linear transform might be scaled differently, we might need to scale up the result separately
         if (postScaling > 1) {
             algo->MultByIntegerInPlace(ctxtDec, postScaling);
         }
-
-        cc->EvalAddInPlace(ctxtDec, cc->EvalRotate(ctxtDec, slots));
 
         std::cerr << "after slotstocoeff sparse" << std::endl;
     }
@@ -3141,10 +3164,7 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, BigInteger
     // Andreea: this is not necessary
     // // 64-bit only: scale back the message to its original scale.
     // // uint64_t corFactor = (uint64_t)1 << std::llround(correction);
-    // // algo->MultByIntegerInPlace(ctxtDec, corFactor);
-    // if (m_correctionFactor != 100) {
-    //     // 64-bit only: scale back the message to its original scale.
-    // }
+    // algo->MultByIntegerInPlace(ctxtDec, 512);
 #endif
 
 #ifdef BOOTSTRAPTIMING
@@ -3195,7 +3215,7 @@ void Floor() {
 
     std::vector<uint32_t> levelBudget = {1, 1};
 
-    uint32_t levelsAvailableAfterBootstrap = 1;
+    uint32_t levelsAvailableAfterBootstrap = 2;
     usint depth                            = levelsAvailableAfterBootstrap + 9;
     parameters.SetMultiplicativeDepth(depth);
 
@@ -3224,6 +3244,8 @@ void Floor() {
         std::exp(Pi * 25i / 16.0) + std::exp(Pi * 75i / 16.0), std::exp(Pi * 29i / 16.0) + std::exp(Pi * 87i / 16.0),
         std::exp(Pi * 17i / 16.0) + std::exp(Pi * 51i / 16.0), std::exp(Pi * 21i / 16.0) + std::exp(Pi * 63i / 16.0),
         std::exp(Pi * 9i / 16.0) + std::exp(Pi * 27i / 16.0),  std::exp(Pi * 13i / 16.0) + std::exp(Pi * 39i / 16.0)};
+    std::transform(y.begin(), y.end(), y.begin(),
+                   std::bind(std::multiplies<std::complex<double>>(), std::placeholders::_1, 1.0 / 2.0));
     std::cerr << "y = " << y << std::endl;
     // depth - 1 means we have two RNS limbs here; we need to the second limb
     // for internal downscaling (scalar multiplication)
@@ -3300,8 +3322,8 @@ void Floor() {
     // std::cout << "\n Decrypting CKKS initial ciphertext" << result << std::endl;
     // std::cout << "Decrypting BFV ciphertext switched to CKKS GetElement<Poly> = " << result->GetElement<Poly>() << std::endl;
 
-    auto initial = DecryptCKKSCoeff({ctxt->GetElements()[0], ctxt->GetElements()[1]}, keyPair.secretKey, numSlots);
-    std::cerr << "Decrypting CKKS initial ciphertext: " << initial << std::endl;
+    // auto initial = DecryptCKKSCoeff({ctxt->GetElements()[0], ctxt->GetElements()[1]}, keyPair.secretKey, numSlots);
+    // std::cerr << "Decrypting CKKS initial ciphertext: " << initial << std::endl;
 
     auto output = DecryptCKKSCoeff(elementsCKKS, keyPair.secretKey, numSlots);
     std::cerr << "Decrypting BFV ciphertext switched to CKKS: " << output << std::endl;
@@ -3352,8 +3374,7 @@ void Floor() {
     }
     std::cerr << "QPrime: " << QPrime << std::endl;
     double scaleMod = QPrime.ConvertToDouble() / (Bigq.ConvertToDouble() * p.ConvertToDouble());
-    // double scaleMod = 1.0 / pNew.ConvertToDouble(); // For fresh CKKS ciphertexts, not originating from BFV
-    // scaleMod = (scaleMod > 1) ? scaleMod : 1.0;
+    // double scaleMod = 1.0; // For fresh CKKS ciphertexts, not originating from BFV
     std::cerr << "scaleMod = " << scaleMod << std::endl;
     EvalFuncBTSetup(*cryptoContext, numSlots, {0, 0}, levelBudget, scaleMod);
     EvalFuncBTKeyGen(keyPair.secretKey, numSlots);
@@ -3431,7 +3452,7 @@ void Sign() {
     SecretKeyDist secretKeyDist = SPARSE_TERNARY;
     parameters.SetSecretKeyDist(secretKeyDist);
     parameters.SetSecurityLevel(HEStd_NotSet);
-    parameters.SetRingDim(16);
+    parameters.SetRingDim(32);
 
     uint32_t dcrtBits = 41;
     uint32_t firstMod = 41;
@@ -3685,7 +3706,7 @@ void Sign() {
         p = PNew;
         iter++;
 
-        // if (iter == 2) {
+        // if (iter == 1) {
         //     return;
         // }
 
