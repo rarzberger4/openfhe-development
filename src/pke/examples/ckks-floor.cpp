@@ -3293,21 +3293,80 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, uint32_t d
         // Running Approximate Mod Reduction
         //------------------------------------------------------------------------------
 
-        // Evaluate Chebyshev series for the sine wave
-        ctxtEnc = cc->EvalChebyshevSeries(ctxtEnc, coefficients1, coeffLowerBound, coeffUpperBound);
+        if (digitBitSize == 1) {  // Andreea: repeating code atm to not make extra copies of ciphertexts
+            // Evaluate Chebyshev series for the cosine wave
+            ctxtEnc = cc->EvalChebyshevSeries(ctxtEnc, coefficients1, coeffLowerBound, coeffUpperBound);
 
-        // Double-angle iterations
-        if ((cryptoParams->GetSecretKeyDist() == UNIFORM_TERNARY) ||
-            (cryptoParams->GetSecretKeyDist() == SPARSE_TERNARY)) {
-            if (cryptoParams->GetScalingTechnique() != FIXEDMANUAL) {
-                algo->ModReduceInternalInPlace(ctxtEnc, BASE_NUM_LEVELS_TO_DROP);
+            // Double-angle iterations
+            if ((cryptoParams->GetSecretKeyDist() == UNIFORM_TERNARY) ||
+                (cryptoParams->GetSecretKeyDist() == SPARSE_TERNARY)) {
+                if (cryptoParams->GetScalingTechnique() != FIXEDMANUAL) {
+                    algo->ModReduceInternalInPlace(ctxtEnc, BASE_NUM_LEVELS_TO_DROP);
+                }
+                uint32_t numIter;
+                if (cryptoParams->GetSecretKeyDist() == UNIFORM_TERNARY)
+                    numIter = R_UNIFORM;
+                else
+                    numIter = R_SPARSE;
+                ApplyDoubleAngleIterations(ctxtEnc, numIter);
             }
-            uint32_t numIter;
-            if (cryptoParams->GetSecretKeyDist() == UNIFORM_TERNARY)
-                numIter = R_UNIFORM;
-            else
-                numIter = R_SPARSE;
-            ApplyDoubleAngleIterations(ctxtEnc, numIter);
+        }
+
+        if (digitBitSize == 2) {
+            // Evaluate Chebyshev series for the sine wave
+            auto ctxtEnc2 = cc->EvalChebyshevSeries(ctxtEnc, coefficients2, coeffLowerBound, coeffUpperBound);
+
+            // Double-angle iterations
+            if ((cryptoParams->GetSecretKeyDist() == UNIFORM_TERNARY) ||
+                (cryptoParams->GetSecretKeyDist() == SPARSE_TERNARY)) {
+                if (cryptoParams->GetScalingTechnique() != FIXEDMANUAL) {
+                    algo->ModReduceInternalInPlace(ctxtEnc, BASE_NUM_LEVELS_TO_DROP);
+                }
+                uint32_t numIter;
+                if (cryptoParams->GetSecretKeyDist() == UNIFORM_TERNARY)
+                    numIter = R_UNIFORM;
+                else
+                    numIter = R_SPARSE;
+                ApplyDoubleAngleIterations(ctxtEnc2, numIter);
+            }
+
+            // Evaluate Chebyshev series for the cosine wave
+            ctxtEnc = cc->EvalChebyshevSeries(ctxtEnc, coefficients1, coeffLowerBound, coeffUpperBound);
+
+            // Double-angle iterations
+            if ((cryptoParams->GetSecretKeyDist() == UNIFORM_TERNARY) ||
+                (cryptoParams->GetSecretKeyDist() == SPARSE_TERNARY)) {
+                if (cryptoParams->GetScalingTechnique() != FIXEDMANUAL) {
+                    algo->ModReduceInternalInPlace(ctxtEnc, BASE_NUM_LEVELS_TO_DROP);
+                }
+                uint32_t numIter;
+                if (cryptoParams->GetSecretKeyDist() == UNIFORM_TERNARY)
+                    numIter = R_UNIFORM;
+                else
+                    numIter = R_SPARSE;
+                ApplyDoubleAngleIterations(ctxtEnc, numIter);
+            }
+
+            // Post-process cos(2pi x) and sin(2pi x) to get the mod 4 approximation or the step 4 approximation
+            if (!step) {
+                auto result = cc->EvalAdd(cc->EvalSub(ctxtEnc, ctxtEnc2), 1.0);
+                cc->EvalSquareInPlace(ctxtEnc);
+                cc->ModReduceInPlace(ctxtEnc);
+                result = cc->EvalMult(result, ctxtEnc);
+                cc->ModReduceInPlace(result);
+                ctxtEnc2 = cc->EvalSub(2.0, ctxtEnc2);
+                ctxtEnc  = cc->EvalSub(ctxtEnc2, result);
+            }
+            else {
+                auto result = cc->EvalAdd(ctxtEnc, ctxtEnc2);
+                cc->EvalSquareInPlace(ctxtEnc);
+                algo->MultByIntegerInPlace(ctxtEnc, 4);
+                cc->ModReduceInPlace(ctxtEnc);
+                result = cc->EvalMult(result, ctxtEnc);
+                cc->ModReduceInPlace(result);
+                ctxtEnc2 = cc->EvalSub(0.5, ctxtEnc2);
+                ctxtEnc  = cc->EvalSub(ctxtEnc2, result);
+            }
         }
 
         // scale the message back up after Chebyshev interpolation
@@ -3405,7 +3464,7 @@ void Floor() {
     parameters.SetFirstModSize(firstMod);
     parameters.SetNumLargeDigits(3);
     parameters.SetBatchSize(numSlots);
-    parameters.SetRingDim(16);
+    parameters.SetRingDim(32);
 
     std::vector<uint32_t> levelBudget = {1, 1};
 
@@ -3665,7 +3724,7 @@ void Sign() {
     parameters.SetFirstModSize(firstMod);
     parameters.SetNumLargeDigits(3);
     parameters.SetBatchSize(numSlots);
-    parameters.SetRingDim(16);
+    parameters.SetRingDim(32);
 
     std::vector<uint32_t> levelBudget = {1, 1};
 
