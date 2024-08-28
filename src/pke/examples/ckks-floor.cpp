@@ -68,7 +68,7 @@ std::vector<std::vector<ConstPlaintext>> m_U0PreFFT;
 
 lbcrypto::EvalKey<lbcrypto::DCRTPoly> m_conjKey;
 
-// Coefficients for the function std::cos(2*Pi/2.0 * (x - 0.25)) in [-12, 12] of degree 58
+/*// Coefficients for the function std::cos(2*Pi/2.0 * (x - 0.25)) in [-12, 12] of degree 58
 static constexpr std::initializer_list<double> coeff_sin_12_mod4{
     0.129512345213235,      -0.1286677896351604,    0.1363383834589498,    -0.1142018378613941,   0.1545141704647699,
     -0.08141291251844558,   0.1761096162294667,     -0.02535548062057226,  0.1855256664050149,    0.05338405772283146,
@@ -100,6 +100,73 @@ static constexpr std::initializer_list<double> coeff_cos_12_mod4{
     0.000963847844676895,  7.583387778371831e-16,  -0.0002027122714816887, 1.378370111081232e-15,
     3.796210784230914e-05, 9.248722315309567e-16,  -6.386059138080906e-06, 1.310157255754687e-15,
     9.739695610267261e-07, 5.344124389721092e-16,  -1.517838290204281e-07};
+*/
+
+// Coefficients for the function std::sin(2*Pi*x) in [-12, 12] of degree 118
+static constexpr std::initializer_list<double> coeff_sin_12_mod4{
+    1.646383776275803e-16,  -0.1293058604986413,   -3.312592963705627e-16, -0.122241376393473,
+    6.501568657862655e-18,  -0.107080271437615,    -6.157539464307591e-17, -0.08207830153574547,
+    3.658225683162855e-16,  -0.04550823640876773,  2.814916833706903e-17,  0.003086187736459739,
+    -4.095842479371458e-16, 0.06111285853253125,   -4.38010388930043e-16,  0.1209846067978416,
+    1.437852521453549e-15,  0.1689789560194281,    3.502829445735017e-16,  0.186590159745329,
+    -5.171079484313048e-16, 0.1562685554148288,    -9.249428953842724e-16, 0.07211623835734007,
+    -7.71500044055433e-16,  -0.04769608275750077,  3.246702626634911e-16,  -0.1556788381731591,
+    -4.995712060649174e-17, -0.1891567475932377,   7.711501838585974e-17,  -0.1092338568321133,
+    1.597694898882841e-17,  0.0522614074707441,    -3.970913234084725e-17, 0.1825917885791433,
+    -2.81302175764071e-16,  0.1587100214495787,    8.984118304575682e-17,  -0.02350855388312963,
+    -5.526187584101241e-16, -0.1895135067432571,   4.380249664382445e-16,  -0.1341979856139577,
+    4.039427522631708e-16,  0.1024023775695568,    -5.367730069951091e-16, 0.2006090574833604,
+    -6.443695950302756e-16, -0.01535424569395262,  8.549708560171406e-16,  -0.213847336838837,
+    -1.161827403658416e-16, -0.02124134925557792,  -7.018049773441295e-16, 0.2215475090706527,
+    4.547162133289457e-16,  -0.006797591722846644, 6.29617156730372e-16,   -0.2274855512858265,
+    8.479736520804275e-16,  0.1108403985739115,    8.603791115598918e-16,  0.1654877912554374,
+    2.168841670217053e-16,  -0.2475897258182746,   1.883807652353402e-15,  0.07378033951098242,
+    -1.032029270632387e-15, 0.1683720193493045,    -5.576334212314353e-16, -0.3064633632335527,
+    -5.282524534513407e-16, 0.3074532190240889,    -1.333754535386739e-15, -0.2301917728599855,
+    -1.322121683841954e-15, 0.1408463622942101,    9.441414736856291e-16,  -0.07355929357959146,
+    1.44148960974982e-15,   0.03364639228060209,   -5.211459182031164e-16, -0.01371216164268495,
+    3.168567182674948e-16,  0.005041043773675936,  9.815036272060371e-17,  -0.001687639359331398,
+    -2.878401881924373e-16, 0.0005183571656007004, -3.225929677447794e-16, -0.0001469662620341661,
+    -2.007614429508621e-16, 3.865965756989653e-05, -9.772907273358077e-16, -9.47618420422844e-06,
+    3.592845558879191e-16,  2.172559835540091e-06, -1.033519820845989e-15, -4.674093240545777e-07,
+    -1.638960180224197e-15, 9.463912104206526e-08, -1.699467772391514e-15, -1.808077164435976e-08,
+    1.109661790559399e-15,  3.266996880143432e-09, -3.43085299899018e-16,  -5.594776938360508e-10,
+    -4.628358853971733e-18, 9.09800934476106e-11,  -3.299400318783282e-16, -1.407375455889839e-11,
+    2.390243042592694e-15,  2.075058411892811e-12, 4.847203695846538e-17,  -2.916671485330324e-13,
+    3.168904287552107e-16,  3.866324532648082e-14, -1.304953479104785e-16};
+
+// Coefficients for the function std::cos(2*Pi*x) in [-12, 12] of degree 118
+static constexpr std::initializer_list<double> coeff_cos_12_mod4{
+    0.1297324437190043,    3.078769732153795e-16,  0.1331623881971898,     -2.630948680204152e-16,
+    0.1428900478488792,    -1.679328944811161e-16, 0.1570920099379769,     7.034522357708975e-16,
+    0.1723323719163123,    -2.574971048710447e-16, 0.1831966630800875,     -5.653740780864242e-16,
+    0.1822961626852133,    -2.089831575765001e-16, 0.1612222667210367,     8.95642103899286e-17,
+    0.1130840211962715,    -3.955752625555179e-16, 0.03688481883077169,    1.287485524355224e-15,
+    -0.05715487764584995,  5.187260518416697e-16,  -0.1442030733001987,    -1.492736839832143e-16,
+    -0.1882007539119627,   3.414635521116027e-16,  -0.1565713066745595,    -2.761563153689465e-16,
+    -0.04507455183928333,  -7.314410515177502e-16, 0.1004340665875224,     1.97787631277759e-16,
+    0.1902571259712754,    -6.082902622315984e-16, 0.1445099886457774,     -4.179663151530001e-16,
+    -0.02500892805632881,  -6.269494727295001e-16, -0.1807757487198436,    -8.396644724055806e-17,
+    -0.1564559821094688,   -1.703585918458433e-15, 0.04965109565979883,    9.852063142892146e-16,
+    0.2027187171310926,    1.0449157878825e-15,    0.08048488282190923,    -2.313742101739822e-16,
+    -0.16961718167671,     -8.266030250570492e-16, -0.1496602648629826,    5.299215781404108e-16,
+    0.1396360512989934,    3.955752625555179e-16,  0.1694985985980304,     1.640144602765567e-15,
+    -0.1537215623863027,   -1.156871050869911e-16, -0.1434437943100919,    -2.724244732693661e-16,
+    0.2125764637196288,    -2.780222364187367e-16, 0.03322835755860232,    -1.156871050869911e-16,
+    -0.2433227424378535,   -2.015194733773393e-16, 0.1835661520585558,     6.885248673725761e-16,
+    0.05244150467131627,   -2.257764470246117e-16, -0.2557267456434503,    -2.181261707204719e-15,
+    0.3214459707895934,    -1.66253565536305e-15,  -0.2739018740663259,    -1.380781576844733e-15,
+    0.1840501073055895,    7.202455252190091e-16,  -0.1036269589817286,    3.937093415057278e-16,
+    0.05051948926821818,   -3.293350652879666e-16, -0.02177287098878604,   -5.709718412357947e-16,
+    0.008416418909615591,  1.55990999762459e-15,   -0.002949597418465354,  -3.358657889622322e-16,
+    0.0009450467013496873, -9.432230906689355e-16, -0.0002786900256678019, -1.296815129604174e-16,
+    7.60644815668297e-05,  1.678395984286266e-15,  -1.93050902413091e-05,  -2.883780982450722e-15,
+    4.574451087223549e-06, -8.835136170756497e-16, -1.015556045562637e-06, -1.296815129604174e-16,
+    2.118872722469988e-07, 1.472211708284451e-15,  -4.166117652820384e-08, -3.731842099580358e-17,
+    7.738385042465596e-09, -3.232708218761485e-16, -1.360895028321035e-09, 3.745836507453784e-16,
+    2.270538332512849e-10, 9.506867748680962e-16,  -3.600744772375386e-11, 2.360390127984577e-16,
+    5.434937047562565e-12, -7.169801633818763e-16, -7.825395327063854e-13, -2.145809207258706e-17,
+    1.069068969671378e-13, 1.335299751256097e-16,  -1.658483108083036e-14};
 
 // Coefficients for the function 0.5*(1-std::cos(2*Pi * x)) in [-12, 12] of degree 118
 static constexpr std::initializer_list<double> coeff_cos_12_mod2{
@@ -181,7 +248,7 @@ static const inline std::vector<double> g_coefficientsUniform{
 std::vector<std::complex<double>> DecryptWithoutDecode(const CryptoContextImpl<DCRTPoly>& cc,
                                                        ConstCiphertext<DCRTPoly> cTemp,
                                                        const PrivateKey<DCRTPoly> privateKey, uint32_t slots,
-                                                       uint32_t ringDim);
+                                                       uint32_t ringDim, bool scale);
 
 std::vector<Poly> EncryptBFVCoeff(std::vector<int64_t> input, BigInteger Q, BigInteger p,
                                   const PrivateKey<DCRTPoly> privateKey);
@@ -230,8 +297,8 @@ std::vector<std::vector<ConstPlaintext>> EvalSlotsToCoeffsPrecompute(const Crypt
                                                                      const std::vector<uint32_t>& rotGroup, bool flag_i,
                                                                      double scale, uint32_t L);
 
-void EvalFuncBTSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t numSlots, std::vector<uint32_t> dim1,
-                     std::vector<uint32_t> levelBudget, double scaleMod);
+void EvalFuncBTSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t numSlots, uint32_t digitSize,
+                     std::vector<uint32_t> dim1, std::vector<uint32_t> levelBudget, double scaleMod);
 
 void EvalFuncBTKeyGen(const PrivateKey<DCRTPoly> privateKey, uint32_t slots);
 
@@ -259,7 +326,8 @@ void AdjustCiphertext(Ciphertext<DCRTPoly>& ciphertext, double correction);
 
 void ApplyDoubleAngleIterations(Ciphertext<DCRTPoly>& ciphertext, uint32_t numIter);
 
-Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, BigInteger initialScaling, uint64_t postScaling);
+Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, uint32_t digitBitSize, BigInteger initialScaling,
+                                uint64_t postScaling);
 
 void SimpleBootstrapExample();
 void TestModApprox();
@@ -719,10 +787,10 @@ std::vector<std::complex<double>> DecryptWithoutDecode(const CryptoContextImpl<D
             curValues[i] = (scale) ? cur * powP : cur;
         }
 
-        for (size_t i = 0; i < 2 * slots; ++i) {
-            std::cout << decrypted->GetElement<NativePoly>()[i] << " ";
-        }
-        std::cout << std::endl;
+        // for (size_t i = 0; i < 2 * slots; ++i) {
+        //     std::cout << decrypted->GetElement<NativePoly>()[i] << " ";
+        // }
+        // std::cout << std::endl;
     }
     else {
         powP = pow(2, -p);
@@ -826,15 +894,15 @@ void TestModApprox() {
     ctxt_cos      = cryptoContext->EvalChebyshevSeries(ctxt, coeff_cos_12_mod4, a_cheby, b_cheby);
     auto ctxt_sin = cryptoContext->EvalChebyshevSeries(ctxt, coeff_sin_12_mod4, a_cheby, b_cheby);
 
-    cryptoContext->EvalSquareInPlace(ctxt_sin);
-    cryptoContext->EvalAddInPlace(ctxt_sin, ctxt_sin);
-    cryptoContext->EvalSubInPlace(ctxt_sin, 1.0);
-    cryptoContext->ModReduceInPlace(ctxt_sin);
+    // cryptoContext->EvalSquareInPlace(ctxt_sin);
+    // cryptoContext->EvalAddInPlace(ctxt_sin, ctxt_sin);
+    // cryptoContext->EvalSubInPlace(ctxt_sin, 1.0);
+    // cryptoContext->ModReduceInPlace(ctxt_sin);
 
-    cryptoContext->EvalSquareInPlace(ctxt_cos);
-    cryptoContext->EvalAddInPlace(ctxt_cos, ctxt_cos);
-    cryptoContext->EvalSubInPlace(ctxt_cos, 1.0);
-    cryptoContext->ModReduceInPlace(ctxt_cos);
+    // cryptoContext->EvalSquareInPlace(ctxt_cos);
+    // cryptoContext->EvalAddInPlace(ctxt_cos, ctxt_cos);
+    // cryptoContext->EvalSubInPlace(ctxt_cos, 1.0);
+    // cryptoContext->ModReduceInPlace(ctxt_cos);
 
     result = cryptoContext->EvalAdd(cryptoContext->EvalSub(ctxt_cos, ctxt_sin), 1.0);
     cryptoContext->EvalSquareInPlace(ctxt_cos);
@@ -865,15 +933,16 @@ void TestModApprox() {
     ctxt_cos = cryptoContext->EvalChebyshevSeries(ctxt, coeff_cos_12_mod4, a_cheby, b_cheby);
     ctxt_sin = cryptoContext->EvalChebyshevSeries(ctxt, coeff_sin_12_mod4, a_cheby, b_cheby);
 
-    cryptoContext->EvalSquareInPlace(ctxt_sin);
-    cryptoContext->EvalAddInPlace(ctxt_sin, ctxt_sin);
-    cryptoContext->EvalSubInPlace(ctxt_sin, 1.0);
-    cryptoContext->ModReduceInPlace(ctxt_sin);
+    // cryptoContext->EvalSquareInPlace(ctxt_sin);
+    // cryptoContext->EvalAddInPlace(ctxt_sin, ctxt_sin);
+    // cryptoContext->EvalSubInPlace(ctxt_sin, 1.0);
+    // cryptoContext->ModReduceInPlace(ctxt_sin);
 
-    cryptoContext->EvalSquareInPlace(ctxt_cos);
-    cryptoContext->EvalAddInPlace(ctxt_cos, ctxt_cos);
-    cryptoContext->EvalSubInPlace(ctxt_cos, 1.0);
-    cryptoContext->ModReduceInPlace(ctxt_cos);
+    // cryptoContext->EvalSquareInPlace(ctxt_cos);
+    // cryptoContext->EvalAddInPlace(ctxt_cos, ctxt_cos);
+    // cryptoContext->EvalSubInPlace(ctxt_cos, 1.0);
+    // cryptoContext->ModReduceInPlace(ctxt_cos);
+
     /*
     cryptoContext->GetScheme()->MultByIntegerInPlace(ctxt_sin, 2); // 2sin
     auto ctxt_sin_sqrt = cryptoContext->EvalMult(ctxt_sin, 2.0 + 2*sqrt(2)); // (4+4sqrt(2))sin
@@ -973,7 +1042,7 @@ void TestModApprox() {
     // double a = -12;
     // double b = 12;
     // int degree = 118;
-    // auto coefficients = EvalChebyshevCoefficients([](double x) -> double { return 0.5*(1.0 - std::cos(2 * Pi * x)); }, a, b, degree);
+    // auto coefficients = EvalChebyshevCoefficients([](double x) -> double { return std::cos(2*Pi* x); }, a, b, degree);
     // std::cout.precision(16);
     // std::cout << "\n";
     // std::cout << "coefficients for cos approx of size " << coefficients.size() << ": " << std::endl;
@@ -985,7 +1054,7 @@ void TestModApprox() {
     // }
     // std::cout << std::endl << std::endl;
 
-    // coefficients = EvalChebyshevCoefficients([](double x) -> double { return std::cos(Pi * (x - 0.25)); }, a, b, degree);
+    // coefficients = EvalChebyshevCoefficients([](double x) -> double { return std::sin(2*Pi*x); }, a, b, degree);
     // std::cout.precision(16);
     // std::cout << "\n";
     // std::cout << "coefficients for sine approx of size " << coefficients.size() << ": " << std::endl;
@@ -1900,8 +1969,8 @@ std::vector<std::vector<ConstPlaintext>> EvalSlotsToCoeffsPrecompute(const Crypt
     return result;
 }
 
-void EvalFuncBTSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t numSlots, std::vector<uint32_t> dim1,
-                     std::vector<uint32_t> levelBudget, double scaleMod) {
+void EvalFuncBTSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t numSlots, uint32_t digitBitSize,
+                     std::vector<uint32_t> dim1, std::vector<uint32_t> levelBudget, double scaleMod) {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(cc.GetCryptoParameters());
 
     if (cryptoParams->GetKeySwitchTechnique() != HYBRID)
@@ -1951,12 +2020,26 @@ void EvalFuncBTSetup(const CryptoContextImpl<DCRTPoly>& cc, uint32_t numSlots, s
     double k         = (cryptoParams->GetSecretKeyDist() == SPARSE_TERNARY) ? K_SPARSE : 1.0;
     std::cerr << "pre in setup = q / factor = " << pre << ", k = " << k << std::endl;
     double scaleEnc = pre / k;
-    // double scaleEnc  = scaleMod / k; // pre / k;
     // double scaleDec  = 1.0; // 1.0 / pre;
     double scaleDec = scaleMod / pre;
 
     uint32_t approxModDepth = 8;  // Andreea: automate?
-    uint32_t depthBT        = approxModDepth + m_levelEnc + m_levelDec;
+    uint32_t extraDepth(0);
+    switch (digitBitSize) {
+        case 1:
+            extraDepth = 0;
+            break;
+        case 2:
+            extraDepth = 2;
+            break;
+        case 3:
+            extraDepth = 4;
+            break;
+        default:
+            OPENFHE_THROW("Digit sizes of more than 3 bits are not currently allowed.");
+            break;
+    }
+    uint32_t depthBT = approxModDepth + m_levelEnc + m_levelDec + extraDepth;
 
     // compute # of levels to remain when encoding the coefficients
     uint32_t L0 = cryptoParams->GetElementParams()->GetParams().size();
@@ -2801,7 +2884,8 @@ void AdjustCiphertext(Ciphertext<DCRTPoly>& ciphertext, double correction) {
     }
 }
 
-Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, BigInteger initialScaling, uint64_t postScaling) {
+Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, uint32_t digitBitSize, BigInteger initialScaling,
+                                uint64_t postScaling) {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ciphertext->GetCryptoParameters());
 
     if (cryptoParams->GetKeySwitchTechnique() != HYBRID)
@@ -2818,10 +2902,10 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, BigInteger
     double timeDecode(0.0);
 #endif
 
-    auto cc        = ciphertext->GetCryptoContext();
-    uint32_t M     = cc->GetCyclotomicOrder();
-    uint32_t L0    = cryptoParams->GetElementParams()->GetParams().size();
-    auto initSizeQ = ciphertext->GetElements()[0].GetNumOfElements();
+    auto cc     = ciphertext->GetCryptoContext();
+    uint32_t M  = cc->GetCyclotomicOrder();
+    uint32_t L0 = cryptoParams->GetElementParams()->GetParams().size();
+    // auto initSizeQ = ciphertext->GetElements()[0].GetNumOfElements();
 
     uint32_t slots = ciphertext->GetSlots();
     size_t N       = cc->GetRingDimension();
@@ -2865,7 +2949,7 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, BigInteger
     double pre = 1. / post;
     uint64_t scalar = std::llround(post);
     */
-    double correction = initialScaling.ConvertToDouble() / cryptoParams->GetScalingFactorReal(0);  // 1.0;
+    double correction = cryptoParams->GetScalingFactorReal(0) / initialScaling.ConvertToDouble();  // 1.0;
     std::cerr << "correction: " << correction << std::endl;
 
     //------------------------------------------------------------------------------
@@ -2882,7 +2966,7 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, BigInteger
     auto algo                   = cc->GetScheme();
     algo->ModReduceInternalInPlace(raised, raised->GetNoiseScaleDeg() - 1);
 
-    // Andreea: if correction = 1, we should not do this adjustment and save a level
+    // Andreea: if correction ~ 1, we should not do this adjustment and save a level
     if (std::llround(correction) != 1.0) {
         AdjustCiphertext(raised, correction);
     }
@@ -2913,17 +2997,34 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, BigInteger
     //------------------------------------------------------------------------------
 
     // Coefficients of the Chebyshev series interpolating 0.5(1-cos(2 Pi K x)) for mod 2
-    std::vector<double> coefficients;
+    std::vector<double> coefficients1;
+    std::vector<double> coefficients2;
     double k = 0;
 
     if (cryptoParams->GetSecretKeyDist() == SPARSE_TERNARY) {
-        coefficients = coeff_cos_12_mod2;  // g_coefficientsSparse; //
+        switch (digitBitSize) {
+            case 1:
+                coefficients1 = coeff_cos_12_mod2;  // g_coefficientsSparse;
+                break;
+            case 2:
+                coefficients1 = coeff_cos_12_mod4;
+                coefficients2 = coeff_sin_12_mod4;
+                break;
+            case 3:
+                coefficients1 = coeff_cos_12_mod4;
+                coefficients2 = coeff_sin_12_mod4;
+                break;
+            default:
+                OPENFHE_THROW("Digit sizes of more than 3 bits are not currently allowed.");
+                break;
+        }
+
         // k = K_SPARSE;
         k = 1.0;  // do not divide by k as we already did it during precomputation
     }
     else {
-        coefficients = g_coefficientsUniform;
-        k            = K_UNIFORM;
+        coefficients1 = g_coefficientsUniform;
+        k             = K_UNIFORM;
     }
 
     // double constantEvalMult = pre * (1.0 / (k * N));
@@ -2984,34 +3085,92 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, BigInteger
         // Running Approximate Mod Reduction
         //------------------------------------------------------------------------------
 
-        // Evaluate Chebyshev series for the sine wave
-        ctxtEnc  = cc->EvalChebyshevSeries(ctxtEnc, coefficients, coeffLowerBound, coeffUpperBound);
-        ctxtEncI = cc->EvalChebyshevSeries(ctxtEncI, coefficients, coeffLowerBound, coeffUpperBound);
+        if (digitBitSize == 1) {  // Andreea: repeating code atm to not make extra copies of ciphertexts
+            // Evaluate Chebyshev series for the cosine wave
+            ctxtEnc  = cc->EvalChebyshevSeries(ctxtEnc, coefficients1, coeffLowerBound, coeffUpperBound);
+            ctxtEncI = cc->EvalChebyshevSeries(ctxtEncI, coefficients1, coeffLowerBound, coeffUpperBound);
 
-        // Double-angle iterations
-        if ((cryptoParams->GetSecretKeyDist() == UNIFORM_TERNARY) ||
-            (cryptoParams->GetSecretKeyDist() == SPARSE_TERNARY)) {
-            if (cryptoParams->GetScalingTechnique() != FIXEDMANUAL) {
-                algo->ModReduceInternalInPlace(ctxtEnc, BASE_NUM_LEVELS_TO_DROP);
-                algo->ModReduceInternalInPlace(ctxtEncI, BASE_NUM_LEVELS_TO_DROP);
+            // Double-angle iterations
+            if ((cryptoParams->GetSecretKeyDist() == UNIFORM_TERNARY) ||
+                (cryptoParams->GetSecretKeyDist() == SPARSE_TERNARY)) {
+                if (cryptoParams->GetScalingTechnique() != FIXEDMANUAL) {
+                    algo->ModReduceInternalInPlace(ctxtEnc, BASE_NUM_LEVELS_TO_DROP);
+                    algo->ModReduceInternalInPlace(ctxtEncI, BASE_NUM_LEVELS_TO_DROP);
+                }
+                uint32_t numIter;
+                if (cryptoParams->GetSecretKeyDist() == UNIFORM_TERNARY)
+                    numIter = R_UNIFORM;
+                else
+                    numIter = R_SPARSE;
+                ApplyDoubleAngleIterations(ctxtEnc, numIter);
+                ApplyDoubleAngleIterations(ctxtEncI, numIter);
             }
-            uint32_t numIter;
-            if (cryptoParams->GetSecretKeyDist() == UNIFORM_TERNARY)
-                numIter = R_UNIFORM;
-            else
-                numIter = R_SPARSE;
-            ApplyDoubleAngleIterations(ctxtEnc, numIter);
-            ApplyDoubleAngleIterations(ctxtEncI, numIter);
         }
 
-        algo->MultByMonomialInPlace(ctxtEncI, M / 4);
+        if (digitBitSize == 2) {
+            // Evaluate Chebyshev series for the sine wave
+            auto ctxtEnc2  = cc->EvalChebyshevSeries(ctxtEnc, coefficients2, coeffLowerBound, coeffUpperBound);
+            auto ctxtEncI2 = cc->EvalChebyshevSeries(ctxtEncI, coefficients2, coeffLowerBound, coeffUpperBound);
+
+            // Double-angle iterations
+            if ((cryptoParams->GetSecretKeyDist() == UNIFORM_TERNARY) ||
+                (cryptoParams->GetSecretKeyDist() == SPARSE_TERNARY)) {
+                if (cryptoParams->GetScalingTechnique() != FIXEDMANUAL) {
+                    algo->ModReduceInternalInPlace(ctxtEnc2, BASE_NUM_LEVELS_TO_DROP);
+                    algo->ModReduceInternalInPlace(ctxtEncI2, BASE_NUM_LEVELS_TO_DROP);
+                }
+                uint32_t numIter;
+                if (cryptoParams->GetSecretKeyDist() == UNIFORM_TERNARY)
+                    numIter = R_UNIFORM;
+                else
+                    numIter = R_SPARSE;
+                ApplyDoubleAngleIterations(ctxtEnc2, numIter);
+                ApplyDoubleAngleIterations(ctxtEncI2, numIter);
+            }
+
+            // Evaluate Chebyshev series for the cosine wave
+            ctxtEnc  = cc->EvalChebyshevSeries(ctxtEnc, coefficients1, coeffLowerBound, coeffUpperBound);
+            ctxtEncI = cc->EvalChebyshevSeries(ctxtEncI, coefficients1, coeffLowerBound, coeffUpperBound);
+
+            // Double-angle iterations
+            if ((cryptoParams->GetSecretKeyDist() == UNIFORM_TERNARY) ||
+                (cryptoParams->GetSecretKeyDist() == SPARSE_TERNARY)) {
+                if (cryptoParams->GetScalingTechnique() != FIXEDMANUAL) {
+                    algo->ModReduceInternalInPlace(ctxtEnc, BASE_NUM_LEVELS_TO_DROP);
+                    algo->ModReduceInternalInPlace(ctxtEncI, BASE_NUM_LEVELS_TO_DROP);
+                }
+                uint32_t numIter;
+                if (cryptoParams->GetSecretKeyDist() == UNIFORM_TERNARY)
+                    numIter = R_UNIFORM;
+                else
+                    numIter = R_SPARSE;
+                ApplyDoubleAngleIterations(ctxtEnc, numIter);
+                ApplyDoubleAngleIterations(ctxtEncI, numIter);
+            }
+
+            // Post-process cos(2pi x) and sin(2pi x) to get the mod 4 approximation
+            auto result = cc->EvalAdd(cc->EvalSub(ctxtEnc, ctxtEnc2), 1.0);
+            cc->EvalSquareInPlace(ctxtEnc);
+            cc->ModReduceInPlace(ctxtEnc);
+            result = cc->EvalMult(result, ctxtEnc);
+            cc->ModReduceInPlace(result);
+            ctxtEnc2 = cc->EvalSub(2.0, ctxtEnc2);
+            ctxtEnc  = cc->EvalSub(ctxtEnc2, result);
+
+            result = cc->EvalAdd(cc->EvalSub(ctxtEncI, ctxtEncI2), 1.0);
+            cc->EvalSquareInPlace(ctxtEncI);
+            cc->ModReduceInPlace(ctxtEncI);
+            result = cc->EvalMult(result, ctxtEncI);
+            cc->ModReduceInPlace(result);
+            ctxtEncI2 = cc->EvalSub(2.0, ctxtEncI2);
+            ctxtEncI  = cc->EvalSub(ctxtEncI2, result);
+        }
+
+        algo->MultByMonomialInPlace(ctxtEncI, M / 4);  // Andreea: try to do this before
         cc->EvalAddInPlace(ctxtEnc, ctxtEncI);
 
         // scale the message back up after Chebyshev interpolation
         // algo->MultByIntegerInPlace(ctxtEnc, scalar); // Andreea: no need, scalar = 1.0
-
-        std::cerr << "ctxtEnc levels: " << ctxtEnc->GetLevel() << " and depth: " << ctxtEnc->GetNoiseScaleDeg()
-                  << std::endl;
 
 #ifdef BOOTSTRAPTIMING
         timeModReduce = TOC(t);
@@ -3107,7 +3266,7 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, BigInteger
         //------------------------------------------------------------------------------
 
         // Evaluate Chebyshev series for the sine wave
-        ctxtEnc = cc->EvalChebyshevSeries(ctxtEnc, coefficients, coeffLowerBound, coeffUpperBound);
+        ctxtEnc = cc->EvalChebyshevSeries(ctxtEnc, coefficients1, coeffLowerBound, coeffUpperBound);
 
         // Double-angle iterations
         if ((cryptoParams->GetSecretKeyDist() == UNIFORM_TERNARY) ||
@@ -3173,9 +3332,6 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, BigInteger
     std::cout << "Decoding time: " << timeDecode / 1000.0 << " s" << std::endl;
 #endif
 
-    auto bootstrappingNumTowers = ctxtDec->GetElements()[0].GetNumOfElements();
-    std::cerr << "bootstrappingNumTowers: " << bootstrappingNumTowers << ", initSizeQ: " << initSizeQ << std::endl;
-
     return ctxtDec;
 }
 
@@ -3197,26 +3353,40 @@ void ApplyDoubleAngleIterations(Ciphertext<DCRTPoly>& ciphertext, uint32_t numIt
 //------------------------------------------------------------------------------
 
 void Floor() {
+    std::cerr << "\n=======Floor evaluation=======\n";
+
+    // BFV parameters
+    BigInteger Q("1152921504606846976");  // 2^60
+    BigInteger p("1048576");              // 2^20
+    // BigInteger Bigq          = BigInteger("35184372088832"); // Mod 2^45
+    // BigInteger Bigq = BigInteger("2199023255552");  // Mod 2^41
+    // BigInteger pNew("2");                           // 2
+    BigInteger Bigq = BigInteger("4398046511104");  // Mod 2^42
+    BigInteger pNew("4");                           // 4
+
+    uint32_t dcrtBits = Bigq.GetMSB() - 1;
+    uint32_t firstMod = Bigq.GetMSB() - 1;
+    uint32_t numSlots = 8;
+
     CCParams<CryptoContextCKKSRNS> parameters;
     SecretKeyDist secretKeyDist = SPARSE_TERNARY;
     parameters.SetSecretKeyDist(secretKeyDist);
     parameters.SetSecurityLevel(HEStd_NotSet);
-    parameters.SetRingDim(16);
-
-    uint32_t dcrtBits = 41;
-    uint32_t firstMod = 41;
-    uint32_t numSlots = 8;
-
     parameters.SetScalingModSize(dcrtBits);
     parameters.SetScalingTechnique(FIXEDMANUAL);
     parameters.SetFirstModSize(firstMod);
     parameters.SetNumLargeDigits(3);
     parameters.SetBatchSize(numSlots);
+    parameters.SetRingDim(16);
 
     std::vector<uint32_t> levelBudget = {1, 1};
 
+    // Andreea: setting levelsAvailableAfterBootstrap different than 2 creates issues.
+    // When 1, fresh CKKS ciphertexts (no modulus reduction is being done) evaluate to zeroes
+    // When 3, the floor evaluation from BFV evaluates to zeroes, but fresh CKKS ciphertexts evaluate correctly
     uint32_t levelsAvailableAfterBootstrap = 2;
-    usint depth                            = levelsAvailableAfterBootstrap + 9;
+    usint depth                            = levelsAvailableAfterBootstrap + 8 + pNew.GetMSB() - 1;
+    depth                                  = (pNew.GetMSB() > 2) ? depth + 1 : depth;
     parameters.SetMultiplicativeDepth(depth);
 
     CryptoContext<DCRTPoly> cryptoContext = GenCryptoContext(parameters);
@@ -3228,10 +3398,29 @@ void Floor() {
     cryptoContext->Enable(FHE);
 
     usint ringDim = cryptoContext->GetRingDimension();
-    std::cout << "CKKS scheme is using ring dimension " << ringDim << " and depth " << depth << std::endl << std::endl;
+    std::cout << "CKKS scheme is using ring dimension " << ringDim << ", depth " << depth << ", firstModSize "
+              << firstMod << " and scalingModSize " << dcrtBits << std::endl
+              << std::endl;
 
     auto keyPair = cryptoContext->KeyGen();
     cryptoContext->EvalMultKeyGen(keyPair.secretKey);
+
+    // More CKKS parameters
+    // The scaling done in decoding needs to align the CKKS ciphertext after bootstrapping with the BFV ciphertext
+    BigInteger QPrime = keyPair.publicKey->GetPublicElements()[0].GetParams()->GetParams()[0]->GetModulus();
+    uint32_t cnt      = 1;
+    auto levels       = levelsAvailableAfterBootstrap;
+    while (levels > 1) {
+        QPrime *= keyPair.publicKey->GetPublicElements()[0].GetParams()->GetParams()[cnt]->GetModulus();
+        levels--;
+        cnt++;
+    }
+    std::cerr << "QPrime: " << QPrime << std::endl;
+    double scaleMod = QPrime.ConvertToDouble() / (Bigq.ConvertToDouble() * p.ConvertToDouble());
+    // double scaleMod = 1.0; // For fresh CKKS ciphertexts, not originating from BFV. // Andreea: if we start on level 0, this gets problematic
+    std::cerr << "scaleMod = " << scaleMod << std::endl;
+    EvalFuncBTSetup(*cryptoContext, numSlots, pNew.GetMSB() - 1, {0, 0}, levelBudget, scaleMod);
+    EvalFuncBTKeyGen(keyPair.secretKey, numSlots);
 
     // =======Step 1. Create a CKKS ciphertext with proper metadata=======
     // We create the ciphertext modulus to be used in BFV
@@ -3239,23 +3428,39 @@ void Floor() {
     // std::vector<double> y = {0.0, 1.0, 0.0, 1.0};
     // std::vector<std::complex<double>> y = { std::exp(Pi*1i/8.0) + std::exp(Pi*3i/8.0), std::exp(Pi*5i/8.0) + std::exp(Pi*15i/8.0), std::exp(Pi*9i/8.0) + std::exp(Pi*27i/8.0), std::exp(Pi*13i/8.0) + std::exp(Pi*39i/8.0)};
     // std::vector<double> y = {0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0};
+    // std::vector<std::complex<double>> y = {
+    //     std::exp(Pi * 1i / 16.0) + std::exp(Pi * 3i / 16.0),   std::exp(Pi * 5i / 16.0) + std::exp(Pi * 15i / 16.0),
+    //     std::exp(Pi * 25i / 16.0) + std::exp(Pi * 75i / 16.0), std::exp(Pi * 29i / 16.0) + std::exp(Pi * 87i / 16.0),
+    //     std::exp(Pi * 17i / 16.0) + std::exp(Pi * 51i / 16.0), std::exp(Pi * 21i / 16.0) + std::exp(Pi * 63i / 16.0),
+    //     std::exp(Pi * 9i / 16.0) + std::exp(Pi * 27i / 16.0),  std::exp(Pi * 13i / 16.0) + std::exp(Pi * 39i / 16.0)};
     std::vector<std::complex<double>> y = {
-        std::exp(Pi * 1i / 16.0) + std::exp(Pi * 3i / 16.0),   std::exp(Pi * 5i / 16.0) + std::exp(Pi * 15i / 16.0),
-        std::exp(Pi * 25i / 16.0) + std::exp(Pi * 75i / 16.0), std::exp(Pi * 29i / 16.0) + std::exp(Pi * 87i / 16.0),
-        std::exp(Pi * 17i / 16.0) + std::exp(Pi * 51i / 16.0), std::exp(Pi * 21i / 16.0) + std::exp(Pi * 63i / 16.0),
-        std::exp(Pi * 9i / 16.0) + std::exp(Pi * 27i / 16.0),  std::exp(Pi * 13i / 16.0) + std::exp(Pi * 39i / 16.0)};
-    std::transform(y.begin(), y.end(), y.begin(),
-                   std::bind(std::multiplies<std::complex<double>>(), std::placeholders::_1, 1.0 / 2.0));
+        std::exp(Pi * 1i / 16.0) + 2.0 * std::exp(Pi * 2i / 16.0) - std::exp(Pi * 3i / 16.0) +
+            std::exp(Pi * 5i / 16.0) - std::exp(Pi * 7i / 16.0),
+        std::exp(Pi * 5i / 16.0) + 2.0 * std::exp(Pi * 10i / 16.0) - std::exp(Pi * 15i / 16.0) +
+            std::exp(Pi * 25i / 16.0) - std::exp(Pi * 35i / 16.0),
+        std::exp(Pi * 25i / 16.0) + 2.0 * std::exp(Pi * 2 * 25i / 16.0) - std::exp(Pi * 3 * 25i / 16.0) +
+            std::exp(Pi * 5 * 25i / 16.0) - std::exp(Pi * 7 * 25i / 16.0),
+        std::exp(Pi * 29i / 16.0) + 2.0 * std::exp(Pi * 2 * 29i / 16.0) - std::exp(Pi * 3 * 29i / 16.0) +
+            std::exp(Pi * 5 * 29i / 16.0) - std::exp(Pi * 7 * 29i / 16.0),
+        std::exp(Pi * 17i / 16.0) + 2.0 * std::exp(Pi * 2 * 17i / 16.0) - std::exp(Pi * 3 * 17i / 16.0) +
+            std::exp(Pi * 5 * 17i / 16.0) - std::exp(Pi * 7 * 17i / 16.0),
+        std::exp(Pi * 21i / 16.0) + 2.0 * std::exp(Pi * 2 * 21i / 16.0) - std::exp(Pi * 3 * 21i / 16.0) +
+            std::exp(Pi * 5 * 21i / 16.0) - std::exp(Pi * 7 * 21i / 16.0),
+        std::exp(Pi * 9i / 16.0) + 2.0 * std::exp(Pi * 2 * 9i / 16.0) - std::exp(Pi * 3 * 9i / 16.0) +
+            std::exp(Pi * 5 * 9i / 16.0) - std::exp(Pi * 7 * 9i / 16.0),
+        std::exp(Pi * 13i / 16.0) + 2.0 * std::exp(Pi * 2 * 13i / 16.0) - std::exp(Pi * 3 * 13i / 16.0) +
+            std::exp(Pi * 5 * 13i / 16.0) - std::exp(Pi * 7 * 13i / 16.0)};
+    std::transform(
+        y.begin(), y.end(), y.begin(),
+        std::bind(std::multiplies<std::complex<double>>(), std::placeholders::_1, 1.0 / pNew.ConvertToDouble()));
     std::cerr << "y = " << y << std::endl;
     // depth - 1 means we have two RNS limbs here; we need to the second limb
     // for internal downscaling (scalar multiplication)
     // so that the sine wave approximation of modular reduction
-    // could achieve reasonable precision
+    // could achieve reasonable precision. Is this true?
     Plaintext ptxt = cryptoContext->MakeCKKSPackedPlaintext(y, 1, depth - levelsAvailableAfterBootstrap + 1);
     ptxt->SetLength(numSlots);
     Ciphertext<DCRTPoly> ctxt = cryptoContext->Encrypt(keyPair.publicKey, ptxt);
-    std::cerr << "Initial CKKS ciphertext levels: " << ctxt->GetLevel() << " and depth: " << ctxt->GetNoiseScaleDeg()
-              << std::endl;
 
     // Switch encryped digit from q to q'
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ctxt->GetCryptoParameters());
@@ -3266,11 +3471,9 @@ void Floor() {
     std::cerr << "\nqPrimeCKKS: " << qPrimeCKKS << std::endl << std::endl;
 
     // =======Step 2. Encrypting and decrypting using BFV-like encryption=======
-    BigInteger Q("1152921504606846976");  // 2^60
-    BigInteger p("1048576");              // 2^20
     std::cerr << "\nBigQBFV: " << Q << std::endl << std::endl;
 
-    std::vector<int64_t> x = {0, 1, 2, 3, 16, 33, 64, 1048575};
+    std::vector<int64_t> x = {524288, 1, 2, 3, 16, 33, 64, 1048575};
 
     std::cerr << "Plaintext before BFV encryption: " << x << std::endl;
 
@@ -3287,14 +3490,10 @@ void Floor() {
 
     auto encryptedDigit = ctxtBFV;
 
-    // BigInteger Bigq          = BigInteger("35184372088832"); // Mod 2^45
-    BigInteger Bigq = BigInteger("2199023255552");  // Mod 2^41
-    BigInteger pNew("2");                           // 2
     // Apply mod q
     encryptedDigit[0].SwitchModulus(Bigq, 1, 0, 0);
     encryptedDigit[1].SwitchModulus(Bigq, 1, 0, 0);
 
-    // decrypted = DecryptBFVCoeff(encrypted, Bigq, pNew, keyPair.secretKey, numSlots);
     decrypted = DecryptBFVCoeff(encryptedDigit, Bigq, pNew, keyPair.secretKey, elementParams, numSlots);
     std::cerr << "Plaintext after BFV decryption of ciphertext mod q: " << decrypted << std::endl;
 
@@ -3313,6 +3512,9 @@ void Floor() {
               << std::endl;
     std::cerr << "Populated CKKS ciphertext levels: " << ctxtNew->GetLevel()
               << " and depth: " << ctxtNew->GetNoiseScaleDeg() << std::endl;
+    std::cerr << "Number of elements of initial ciphertext: " << ctxt->GetElements()[0].GetNumOfElements() << std::endl;
+    std::cerr << "Initial CKKS ciphertext levels: " << ctxt->GetLevel() << " and depth: " << ctxt->GetNoiseScaleDeg()
+              << std::endl;
 
     // =======Check decryption correctness=======
 
@@ -3336,60 +3538,10 @@ void Floor() {
 
     // =======Step 5. Bootstrap the digit=======
 
-    /*// Initial sanity check
-    cryptoContext->EvalBootstrapSetup(levelBudget, {0, 0}, numSlots, 0);
-    cryptoContext->EvalBootstrapKeyGen(keyPair.secretKey, numSlots);
-    auto ctxtAfterBT = cryptoContext->EvalBootstrap(ctxtNew);
-
-    cryptoContext->ModReduceInPlace(ctxtAfterBT);
-    std::cout << "Number of levels remaining: "
-              << depth - ctxtAfterBT->GetLevel() + 1 - ctxtAfterBT->GetNoiseScaleDeg() << std::endl;
-    std::cout << "CKKS modulus after func bootstrapping: " << ctxtAfterBT->GetElements()[0].GetModulus() << ", "
-              << ctxtAfterBT->GetElements()[0].GetWorkingModulus() << std::endl;
-
-    auto vec3 = DecryptWithoutDecode(*cryptoContext, ctxtAfterBT, keyPair.secretKey, numSlots,
-                                     cryptoContext->GetRingDimension(), true);
-    std::cerr << "\nDecrypted bootstrapped digit without decoding: " << vec3 << std::endl;
-
-    elementsCKKS[0] = ctxtAfterBT->GetElements()[0];
-    elementsCKKS[1] = ctxtAfterBT->GetElements()[1];
-
-    output = DecryptCKKSCoeff(elementsCKKS, keyPair.secretKey, numSlots);
-    std::cerr << "Decrypting bootstrapped digit without scaling: " << output << std::endl;
-
-    cryptoContext->Decrypt(keyPair.secretKey, ctxtAfterBT, &result);
-    result->SetLength(numSlots);
-    std::cout << "\nFull decryption bootstrapped digit" << result << std::endl;
-
-    std::cerr << "Initial CKKS ciphertext levels: " << ctxt->GetLevel() << " and depth: " << ctxt->GetNoiseScaleDeg()
-              << std::endl;
-    */
-
-    // The scaling done in decoding needs to align the CKKS ciphertext after bootstrapping with the BFV ciphertext
-    BigInteger QPrime = keyPair.publicKey->GetPublicElements()[0].GetParams()->GetParams()[0]->GetModulus();
-    uint32_t cnt      = 1;
-    while (levelsAvailableAfterBootstrap > 1) {
-        QPrime *= keyPair.publicKey->GetPublicElements()[0].GetParams()->GetParams()[cnt]->GetModulus();
-        levelsAvailableAfterBootstrap--;
-    }
-    std::cerr << "QPrime: " << QPrime << std::endl;
-    double scaleMod = QPrime.ConvertToDouble() / (Bigq.ConvertToDouble() * p.ConvertToDouble());
-    // double scaleMod = 1.0; // For fresh CKKS ciphertexts, not originating from BFV
-    std::cerr << "scaleMod = " << scaleMod << std::endl;
-    EvalFuncBTSetup(*cryptoContext, numSlots, {0, 0}, levelBudget, scaleMod);
-    EvalFuncBTKeyGen(keyPair.secretKey, numSlots);
-
-    auto ctxtAfterFuncBT = EvalFuncBT(ctxtNew, qPrimeCKKS, 1);
+    auto ctxtAfterFuncBT = EvalFuncBT(ctxtNew, pNew.GetMSB() - 1, qPrimeCKKS, 1.0);
+    // auto ctxtAfterFuncBT = EvalFuncBT(ctxt, pNew.GetMSB() - 1, Bigq, 1.0); // Test for fresh ciphertext
 
     cryptoContext->ModReduceInPlace(ctxtAfterFuncBT);
-    std::cout << "Number of levels remaining: "
-              << depth - ctxtAfterFuncBT->GetLevel() + 1 - ctxtAfterFuncBT->GetNoiseScaleDeg() << std::endl;
-    std::cout << "CKKS modulus after func bootstrapping: " << ctxtAfterFuncBT->GetElements()[0].GetModulus() << ", "
-              << ctxtAfterFuncBT->GetElements()[0].GetWorkingModulus() << std::endl;
-
-    if (QPrime != ctxtAfterFuncBT->GetElements()[0].GetModulus()) {
-        OPENFHE_THROW("The ciphertext modulus after bootstrapping is not as expected.");
-    }
 
     auto vec2 = DecryptWithoutDecode(*cryptoContext, ctxtAfterFuncBT, keyPair.secretKey, numSlots,
                                      cryptoContext->GetRingDimension(), true);
@@ -3401,6 +3553,10 @@ void Floor() {
 
     output = DecryptCKKSCoeff(elementsCKKS, keyPair.secretKey, numSlots);
     std::cerr << "Decrypting func bootstrapped digit without scaling: " << output << std::endl;
+    std::transform(output.begin(), output.end(), output.begin(),
+                   std::bind(std::multiplies<double>(), std::placeholders::_1,
+                             1.0 / cryptoParams->GetScalingFactorReal(0)));  // 1.0 / qPrimeCKKS.ConvertToDouble()));
+    std::cerr << "Decrypting func bootstrapped digit scaled: " << output << std::endl;
 
     cryptoContext->Decrypt(keyPair.secretKey, ctxtAfterFuncBT, &result);
     result->SetLength(numSlots);
@@ -3409,6 +3565,15 @@ void Floor() {
     // vec2 = DecryptWithoutDecode(*cryptoContext, ctxtNew, keyPair.secretKey, numSlots, cryptoContext->GetRingDimension(),
     //                             true);
     // std::cerr << "\nDecrypted initial without decoding: " << vec2 << std::endl << std::endl;
+
+    std::cout << "Number of levels remaining: "
+              << depth - ctxtAfterFuncBT->GetLevel() + 1 - ctxtAfterFuncBT->GetNoiseScaleDeg() << std::endl;
+    std::cout << "CKKS modulus after func bootstrapping: " << ctxtAfterFuncBT->GetElements()[0].GetModulus() << ", "
+              << ctxtAfterFuncBT->GetElements()[0].GetWorkingModulus() << std::endl;
+
+    if (QPrime != ctxtAfterFuncBT->GetElements()[0].GetModulus()) {
+        OPENFHE_THROW("The ciphertext modulus after bootstrapping is not as expected.");
+    }
 
     // =======Step 6. Modulus switch to align with the initial BFV ciphertext=======
 
@@ -3437,37 +3602,51 @@ void Floor() {
         aPoly = aPoly.MultiplyAndRound(Q, QPrime);
     }
 
-    auto bPolyNew = ctxtBFV[0] - bPoly;
-    auto aPolyNew = ctxtBFV[1] - aPoly;
+    ctxtBFV[0] = ctxtBFV[0] - bPoly;
+    ctxtBFV[1] = ctxtBFV[1] - aPoly;
 
     decrypted = DecryptBFVCoeff({bPoly, aPoly}, Q, p, keyPair.secretKey, elementParams, numSlots);
     std::cerr << "\nPlaintext after BFV decryption of digit mod Q: " << decrypted << std::endl;
 
-    decrypted = DecryptBFVCoeff({bPolyNew, aPolyNew}, Q, p, keyPair.secretKey, elementParams, numSlots);
+    decrypted = DecryptBFVCoeff(ctxtBFV, Q, p, keyPair.secretKey, elementParams, numSlots);
     std::cerr << "\nPlaintext after BFV decryption of ciphertext mod Q: " << decrypted << std::endl;
 }
 
 void Sign() {
+    std::cerr << "\n=======Sign evaluation=======\n";
+
+    // BFV parameters
+    BigInteger Q("1152921504606846976");  // 2^60
+    BigInteger p("1048576");              // 2^20
+    // BigInteger Bigq          = BigInteger("35184372088832"); // Mod 2^45
+    // BigInteger Bigq = BigInteger("2199023255552");  // Mod 2^41
+    // BigInteger pNew("2");                           // 2
+    BigInteger Bigq = BigInteger("4398046511104");  // Mod 2^42
+    BigInteger pNew("4");                           // 4
+
+    uint32_t dcrtBits = Bigq.GetMSB() - 1;
+    uint32_t firstMod = Bigq.GetMSB() - 1;
+    uint32_t numSlots = 8;
+
     CCParams<CryptoContextCKKSRNS> parameters;
     SecretKeyDist secretKeyDist = SPARSE_TERNARY;
     parameters.SetSecretKeyDist(secretKeyDist);
     parameters.SetSecurityLevel(HEStd_NotSet);
-    parameters.SetRingDim(32);
-
-    uint32_t dcrtBits = 41;
-    uint32_t firstMod = 41;
-    uint32_t numSlots = 8;
-
     parameters.SetScalingModSize(dcrtBits);
     parameters.SetScalingTechnique(FIXEDMANUAL);
     parameters.SetFirstModSize(firstMod);
     parameters.SetNumLargeDigits(3);
     parameters.SetBatchSize(numSlots);
+    parameters.SetRingDim(16);
 
     std::vector<uint32_t> levelBudget = {1, 1};
 
-    uint32_t levelsAvailableAfterBootstrap = 1;
-    usint depth                            = levelsAvailableAfterBootstrap + 9;
+    // Andreea: setting levelsAvailableAfterBootstrap different than 2 creates issues.
+    // When 1, fresh CKKS ciphertexts (no modulus reduction is being done) evaluate to zeroes
+    // When 3, the floor evaluation from BFV evaluates to zeroes, but fresh CKKS ciphertexts evaluate correctly
+    uint32_t levelsAvailableAfterBootstrap = 2;
+    usint depth                            = levelsAvailableAfterBootstrap + 8 + pNew.GetMSB() - 1;
+    depth                                  = (pNew.GetMSB() > 2) ? depth + 1 : depth;
     parameters.SetMultiplicativeDepth(depth);
 
     CryptoContext<DCRTPoly> cryptoContext = GenCryptoContext(parameters);
@@ -3479,31 +3658,28 @@ void Sign() {
     cryptoContext->Enable(FHE);
 
     usint ringDim = cryptoContext->GetRingDimension();
-    std::cout << "CKKS scheme is using ring dimension " << ringDim << " and depth " << depth << std::endl << std::endl;
+    std::cout << "CKKS scheme is using ring dimension " << ringDim << ", depth " << depth << ", firstModSize "
+              << firstMod << " and scalingModSize " << dcrtBits << std::endl
+              << std::endl;
 
     auto keyPair = cryptoContext->KeyGen();
     cryptoContext->EvalMultKeyGen(keyPair.secretKey);
-
-    // BFV parameters
-    BigInteger Q("1152921504606846976");  // 2^60
-    BigInteger p("1048576");              // 2^20
-    // BigInteger Bigq          = BigInteger("35184372088832"); // Mod 2^45
-    BigInteger Bigq = BigInteger("2199023255552");  // Mod 2^41
-    BigInteger pNew("2");                           // 2
 
     // More CKKS parameters
     // The scaling done in decoding needs to align the CKKS ciphertext after bootstrapping with the BFV ciphertext
     BigInteger QPrime = keyPair.publicKey->GetPublicElements()[0].GetParams()->GetParams()[0]->GetModulus();
     uint32_t cnt      = 1;
-    while (levelsAvailableAfterBootstrap > 1) {
+    auto levels       = levelsAvailableAfterBootstrap;
+    while (levels > 1) {
         QPrime *= keyPair.publicKey->GetPublicElements()[0].GetParams()->GetParams()[cnt]->GetModulus();
-        levelsAvailableAfterBootstrap--;
+        levels--;
+        cnt++;
     }
     std::cerr << "QPrime: " << QPrime << std::endl;
     double scaleMod = QPrime.ConvertToDouble() / (Bigq.ConvertToDouble() * p.ConvertToDouble());
-    // double scaleMod = 1.0 / pNew.ConvertToDouble(); // For fresh CKKS ciphertexts, not originating from BFV
+    // double scaleMod = 1.0; // For fresh CKKS ciphertexts, not originating from BFV
     std::cerr << "scaleMod = " << scaleMod << std::endl;
-    EvalFuncBTSetup(*cryptoContext, numSlots, {0, 0}, levelBudget, scaleMod);
+    EvalFuncBTSetup(*cryptoContext, numSlots, pNew.GetMSB() - 1, {0, 0}, levelBudget, scaleMod);
     EvalFuncBTKeyGen(keyPair.secretKey, numSlots);
 
     // =======Step 1. Create a CKKS ciphertext with proper metadata=======
@@ -3572,7 +3748,6 @@ void Sign() {
         encryptedDigit[0].SwitchModulus(Bigq, 1, 0, 0);
         encryptedDigit[1].SwitchModulus(Bigq, 1, 0, 0);
 
-        // decrypted = DecryptBFVCoeff(encrypted, Bigq, pNew, keyPair.secretKey, numSlots);
         decrypted = DecryptBFVCoeff(encryptedDigit, Bigq, pNew, keyPair.secretKey, elementParams, numSlots);
         std::cerr << "Plaintext after BFV decryption of ciphertext mod q: " << decrypted << std::endl;
 
@@ -3619,7 +3794,7 @@ void Sign() {
         // std::cerr << "scaleMod = " << scaleMod << std::endl;
 
         // Andreea: to not have to modify the decoding matrix, we multiply the BFV ciphertext by pOrig/pNew
-        auto ctxtAfterFuncBT = EvalFuncBT(ctxtNew, qPrimeCKKS, pOrig.ConvertToDouble() / pBFVDouble);
+        auto ctxtAfterFuncBT = EvalFuncBT(ctxtNew, pNew.GetMSB() - 1, qPrimeCKKS, pOrig.ConvertToDouble() / pBFVDouble);
 
         cryptoContext->ModReduceInPlace(ctxtAfterFuncBT);
         std::cout << "Number of levels remaining: "
@@ -3710,7 +3885,7 @@ void Sign() {
         //     return;
         // }
 
-        // Andreea: for arbitrary digit size, pNew, the last iteration might be different
+        // Andreea: for arbitrary digit size, pNew > 2, the last iteration needs to evaluate step pNew not mod pNew
     }
 }
 
