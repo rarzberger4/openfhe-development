@@ -327,7 +327,7 @@ void AdjustCiphertext(Ciphertext<DCRTPoly>& ciphertext, double correction);
 void ApplyDoubleAngleIterations(Ciphertext<DCRTPoly>& ciphertext, uint32_t numIter);
 
 Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, uint32_t digitBitSize, BigInteger initialScaling,
-                                uint64_t postScaling);
+                                uint64_t postScaling, bool step = false);
 
 void SimpleBootstrapExample();
 void TestModApprox();
@@ -2885,7 +2885,7 @@ void AdjustCiphertext(Ciphertext<DCRTPoly>& ciphertext, double correction) {
 }
 
 Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, uint32_t digitBitSize, BigInteger initialScaling,
-                                uint64_t postScaling) {
+                                uint64_t postScaling, bool step) {
     const auto cryptoParams = std::dynamic_pointer_cast<CryptoParametersCKKSRNS>(ciphertext->GetCryptoParameters());
 
     if (cryptoParams->GetKeySwitchTechnique() != HYBRID)
@@ -3019,6 +3019,13 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, uint32_t d
                 break;
         }
 
+        if (step) {
+            std::transform(coefficients1.begin(), coefficients1.end(), coefficients1.begin(),
+                           std::bind(std::multiplies<double>(), std::placeholders::_1, 1.0 / (1 << digitBitSize)));
+            std::transform(coefficients2.begin(), coefficients2.end(), coefficients2.begin(),
+                           std::bind(std::multiplies<double>(), std::placeholders::_1, 1.0 / (1 << digitBitSize)));
+        }
+
         // k = K_SPARSE;
         k = 1.0;  // do not divide by k as we already did it during precomputation
     }
@@ -3148,25 +3155,46 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, uint32_t d
                 ApplyDoubleAngleIterations(ctxtEncI, numIter);
             }
 
-            // Post-process cos(2pi x) and sin(2pi x) to get the mod 4 approximation
-            auto result = cc->EvalAdd(cc->EvalSub(ctxtEnc, ctxtEnc2), 1.0);
-            cc->EvalSquareInPlace(ctxtEnc);
-            cc->ModReduceInPlace(ctxtEnc);
-            result = cc->EvalMult(result, ctxtEnc);
-            cc->ModReduceInPlace(result);
-            ctxtEnc2 = cc->EvalSub(2.0, ctxtEnc2);
-            ctxtEnc  = cc->EvalSub(ctxtEnc2, result);
+            // Post-process cos(2pi x) and sin(2pi x) to get the mod 4 approximation or the step 4 approximation
+            if (!step) {
+                auto result = cc->EvalAdd(cc->EvalSub(ctxtEnc, ctxtEnc2), 1.0);
+                cc->EvalSquareInPlace(ctxtEnc);
+                cc->ModReduceInPlace(ctxtEnc);
+                result = cc->EvalMult(result, ctxtEnc);
+                cc->ModReduceInPlace(result);
+                ctxtEnc2 = cc->EvalSub(2.0, ctxtEnc2);
+                ctxtEnc  = cc->EvalSub(ctxtEnc2, result);
 
-            result = cc->EvalAdd(cc->EvalSub(ctxtEncI, ctxtEncI2), 1.0);
-            cc->EvalSquareInPlace(ctxtEncI);
-            cc->ModReduceInPlace(ctxtEncI);
-            result = cc->EvalMult(result, ctxtEncI);
-            cc->ModReduceInPlace(result);
-            ctxtEncI2 = cc->EvalSub(2.0, ctxtEncI2);
-            ctxtEncI  = cc->EvalSub(ctxtEncI2, result);
+                result = cc->EvalAdd(cc->EvalSub(ctxtEncI, ctxtEncI2), 1.0);
+                cc->EvalSquareInPlace(ctxtEncI);
+                cc->ModReduceInPlace(ctxtEncI);
+                result = cc->EvalMult(result, ctxtEncI);
+                cc->ModReduceInPlace(result);
+                ctxtEncI2 = cc->EvalSub(2.0, ctxtEncI2);
+                ctxtEncI  = cc->EvalSub(ctxtEncI2, result);
+            }
+            else {
+                auto result = cc->EvalAdd(ctxtEnc, ctxtEnc2);
+                cc->EvalSquareInPlace(ctxtEnc);
+                algo->MultByIntegerInPlace(ctxtEnc, 4);
+                cc->ModReduceInPlace(ctxtEnc);
+                result = cc->EvalMult(result, ctxtEnc);
+                cc->ModReduceInPlace(result);
+                ctxtEnc2 = cc->EvalSub(0.5, ctxtEnc2);
+                ctxtEnc  = cc->EvalSub(ctxtEnc2, result);
+
+                result = cc->EvalAdd(ctxtEncI, ctxtEncI2);
+                cc->EvalSquareInPlace(ctxtEncI);
+                algo->MultByIntegerInPlace(ctxtEncI, 4);
+                cc->ModReduceInPlace(ctxtEncI);
+                result = cc->EvalMult(result, ctxtEncI);
+                cc->ModReduceInPlace(result);
+                ctxtEnc2 = cc->EvalSub(0.5, ctxtEncI2);
+                ctxtEncI = cc->EvalSub(ctxtEncI2, result);
+            }
         }
 
-        algo->MultByMonomialInPlace(ctxtEncI, M / 4);  // Andreea: try to do this before
+        algo->MultByMonomialInPlace(ctxtEncI, M / 4);
         cc->EvalAddInPlace(ctxtEnc, ctxtEncI);
 
         // scale the message back up after Chebyshev interpolation
@@ -3737,8 +3765,13 @@ void Sign() {
     BigInteger pOrig    = p;
 
     uint32_t iter = 0;
-    while (QBFVDouble > qDigitDouble) {
+    bool step     = false;
+    bool go       = QBFVDouble > qDigitDouble;
+
+    // For arbitrary digit size, pNew > 2, the last iteration needs to evaluate step pNew not mod pNew
+    while (go) {
         std::cerr << "\n=======Iteration " << iter << "=======\n";
+        std::cerr << "step = " << step << std::endl;
 
         // =======Step 3. Changing (\log Q, \log p) from  (41,60) to (41,2), i.e., doing mod q=======
 
@@ -3794,7 +3827,8 @@ void Sign() {
         // std::cerr << "scaleMod = " << scaleMod << std::endl;
 
         // Andreea: to not have to modify the decoding matrix, we multiply the BFV ciphertext by pOrig/pNew
-        auto ctxtAfterFuncBT = EvalFuncBT(ctxtNew, pNew.GetMSB() - 1, qPrimeCKKS, pOrig.ConvertToDouble() / pBFVDouble);
+        auto ctxtAfterFuncBT =
+            EvalFuncBT(ctxtNew, pNew.GetMSB() - 1, qPrimeCKKS, pOrig.ConvertToDouble() / pBFVDouble, step);
 
         cryptoContext->ModReduceInPlace(ctxtAfterFuncBT);
         std::cout << "Number of levels remaining: "
@@ -3852,40 +3886,53 @@ void Sign() {
             aPoly = aPoly.MultiplyAndRound(Q, QPrime);
         }
 
-        ctxtBFV[0] = ctxtBFV[0] - bPoly;
-        ctxtBFV[1] = ctxtBFV[1] - aPoly;
-
-        decrypted = DecryptBFVCoeff({bPoly, aPoly}, Q, p, keyPair.secretKey, elementParams, numSlots);
-        std::cerr << "\nPlaintext after BFV decryption of digit mod Q: " << decrypted << std::endl;
-
-        decrypted = DecryptBFVCoeff(ctxtBFV, Q, p, keyPair.secretKey, elementParams, numSlots);
-        std::cerr << "\nPlaintext after BFV decryption of ciphertext mod Q: " << decrypted << std::endl;
-
         BigInteger QNew(std::to_string(static_cast<uint64_t>(QBFVDouble / pDigitDouble)));
         BigInteger PNew(std::to_string(static_cast<uint64_t>(pBFVDouble / pDigitDouble)));
         std::cerr << "QNew = " << QNew << std::endl;
 
-        // Do modulus switching from Q to QNew for the BFV ciphertext
-        ctxtBFV[0] = ctxtBFV[0].MultiplyAndRound(QNew, Q);
-        ctxtBFV[0].SwitchModulus(QNew, 1, 0, 0);
+        if (!step) {
+            ctxtBFV[0] = ctxtBFV[0] - bPoly;
+            ctxtBFV[1] = ctxtBFV[1] - aPoly;
 
-        ctxtBFV[1] = ctxtBFV[1].MultiplyAndRound(QNew, Q);
-        ctxtBFV[1].SwitchModulus(QNew, 1, 0, 0);
+            decrypted = DecryptBFVCoeff({bPoly, aPoly}, Q, p, keyPair.secretKey, elementParams, numSlots);
+            std::cerr << "\nPlaintext after BFV decryption of digit mod Q: " << decrypted << std::endl;
 
-        decrypted = DecryptBFVCoeff(ctxtBFV, QNew, PNew, keyPair.secretKey, elementParams, numSlots);
-        std::cerr << "\nPlaintext after BFV decryption of digit mod Q/pDigit: " << decrypted << std::endl;
+            decrypted = DecryptBFVCoeff(ctxtBFV, Q, p, keyPair.secretKey, elementParams, numSlots);
+            std::cerr << "\nPlaintext after BFV decryption of ciphertext mod Q: " << decrypted << std::endl;
 
-        QBFVDouble /= pDigitDouble;
-        pBFVDouble /= pDigitDouble;
-        Q = QNew;
-        p = PNew;
-        iter++;
+            // Do modulus switching from Q to QNew for the BFV ciphertext
+            ctxtBFV[0] = ctxtBFV[0].MultiplyAndRound(QNew, Q);
+            ctxtBFV[0].SwitchModulus(QNew, 1, 0, 0);
+
+            ctxtBFV[1] = ctxtBFV[1].MultiplyAndRound(QNew, Q);
+            ctxtBFV[1].SwitchModulus(QNew, 1, 0, 0);
+
+            decrypted = DecryptBFVCoeff(ctxtBFV, QNew, PNew, keyPair.secretKey, elementParams, numSlots);
+            std::cerr << "\nPlaintext after BFV decryption of digit mod Q/pDigit: " << decrypted << std::endl;
+
+            QBFVDouble /= pDigitDouble;
+            pBFVDouble /= pDigitDouble;
+            Q = QNew;
+            p = PNew;
+            iter++;
+        }
+        else {
+            ctxtBFV[0] = bPoly;
+            ctxtBFV[1] = aPoly;
+
+            decrypted = DecryptBFVCoeff(ctxtBFV, Q, p, keyPair.secretKey, elementParams, numSlots);
+            std::cerr << "\nPlaintext after BFV decryption of ciphertext mod Q: " << decrypted << std::endl;
+        }
 
         // if (iter == 1) {
         //     return;
         // }
+        go = QBFVDouble > qDigitDouble;
 
-        // Andreea: for arbitrary digit size, pNew > 2, the last iteration needs to evaluate step pNew not mod pNew
+        if (pNew > 2 && !go && !step) {
+            step = true;
+            go   = true;
+        }
     }
 }
 
