@@ -831,8 +831,8 @@ void TestModApprox() {
     parameters.SetSecurityLevel(HEStd_NotSet);
     parameters.SetRingDim(32);
 
-    uint32_t dcrtBits = 41;
-    uint32_t firstMod = 41;
+    uint32_t dcrtBits = 43;
+    uint32_t firstMod = 43;
     uint32_t numSlots = 16;
 
     parameters.SetScalingModSize(dcrtBits);
@@ -1031,6 +1031,98 @@ void TestModApprox() {
     std::vector<double> exact8 = {0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7};
 
     std::vector<double> error8(ptxt_result->GetRealPackedValue());
+    std::transform(exact8.begin(), exact8.end(), error8.begin(), error8.begin(), std::minus<double>());
+    std::transform(error8.begin(), error8.end(), error8.begin(), [&](const double& elem) { return std::abs(elem); });
+    std::cout << "Absolute error mod 8: " << error8 << std::endl;
+    mean_error = std::accumulate(error8.begin(), error8.end(), 0.0) / numSlots;
+    std::cout << "Average absolute error mod 8: " << mean_error << std::endl;
+    max_error_it = std::max_element(error8.begin(), error8.end());
+    std::cout << "Max absolute error mod 8: " << *max_error_it << std::endl << std::endl;
+
+    // Step 8
+
+    std::vector<double> coefficients1;
+    std::vector<double> coefficients2;
+    coefficients1 = coeff_cos_12_mod4;
+    coefficients2 = coeff_sin_12_mod4;
+    std::transform(coefficients1.begin(), coefficients1.end(), coefficients1.begin(),
+                   std::bind(std::multiplies<double>(), std::placeholders::_1, 0.25));
+    std::transform(coefficients2.begin(), coefficients2.end(), coefficients2.begin(),
+                   std::bind(std::multiplies<double>(), std::placeholders::_1, 0.25));
+
+    ctxt_cos = cryptoContext->EvalChebyshevSeries(ctxt, coefficients1, a_cheby, b_cheby);
+    ctxt_sin = cryptoContext->EvalChebyshevSeries(ctxt, coefficients2, a_cheby, b_cheby);
+
+    // cryptoContext->EvalSquareInPlace(ctxt_sin);
+    // cryptoContext->EvalAddInPlace(ctxt_sin, ctxt_sin);
+    // cryptoContext->EvalSubInPlace(ctxt_sin, 1.0);
+    // cryptoContext->ModReduceInPlace(ctxt_sin);
+
+    // cryptoContext->EvalSquareInPlace(ctxt_cos);
+    // cryptoContext->EvalAddInPlace(ctxt_cos, ctxt_cos);
+    // cryptoContext->EvalSubInPlace(ctxt_cos, 1.0);
+    // cryptoContext->ModReduceInPlace(ctxt_cos);
+
+    cryptoContext->GetScheme()->MultByIntegerInPlace(ctxt_sin, 2);         // 2sin (sin and cos were divided by 1/4)
+    ctxt_sin_sqrt = cryptoContext->EvalMult(ctxt_sin, 2.0 + 2 * sqrt(2));  // (4+4sqrt(2))sin
+    cryptoContext->ModReduceInPlace(ctxt_sin_sqrt);
+    cryptoContext->GetScheme()->MultByIntegerInPlace(ctxt_cos, 2);                                  // 2cos
+    ctxt_cos2 = cryptoContext->GetScheme()->MultByInteger(cryptoContext->EvalSquare(ctxt_cos), 4);  // 16cos^2
+    cryptoContext->ModReduceInPlace(ctxt_cos2);
+
+    result = cryptoContext->EvalSub(cryptoContext->GetScheme()->MultByInteger(ctxt_sin, 7),
+                                    cryptoContext->EvalAdd(1.0, ctxt_sin_sqrt));
+    // cryptoContext->LevelReduceInPlace(result, nullptr, 1);
+    term = cryptoContext->EvalMult(ctxt_cos,
+                                   cryptoContext->EvalSub(-1, cryptoContext->GetScheme()->MultByInteger(ctxt_sin, 20)));
+    cryptoContext->ModReduceInPlace(term);
+    // cryptoContext->LevelReduceInPlace(term, nullptr, 1);
+    cryptoContext->EvalAddInPlace(result, term);
+    term = cryptoContext->EvalMult(
+        ctxt_cos2,
+        cryptoContext->EvalSub(
+            3, cryptoContext->EvalAdd(ctxt_sin_sqrt, cryptoContext->GetScheme()->MultByInteger(ctxt_sin, 6))));
+    cryptoContext->ModReduceInPlace(term);
+    cryptoContext->EvalAddInPlace(result, term);
+
+    result2 = cryptoContext->EvalMult(
+        ctxt_cos, cryptoContext->EvalAdd(4, cryptoContext->GetScheme()->MultByInteger(ctxt_sin, 32)));
+    cryptoContext->ModReduceInPlace(result2);
+    term = cryptoContext->EvalMult(
+        ctxt_cos2, cryptoContext->EvalAdd(-2.0, cryptoContext->GetScheme()->MultByInteger(ctxt_sin_sqrt, 2)));
+    cryptoContext->ModReduceInPlace(term);
+    cryptoContext->EvalAddInPlace(result2, term);
+    term = cryptoContext->EvalAdd(4, cryptoContext->GetScheme()->MultByInteger(ctxt_sin, 16));
+    term = cryptoContext->EvalMult(ctxt_cos, term);
+    cryptoContext->ModReduceInPlace(term);
+    term = cryptoContext->EvalMult(ctxt_cos2, term);
+    cryptoContext->ModReduceInPlace(term);
+    cryptoContext->EvalSubInPlace(result2, term);
+
+    cryptoContext->LevelReduceInPlace(ctxt_cos2, nullptr, 1);
+    result2 = cryptoContext->EvalMult(ctxt_cos2, result2);
+    cryptoContext->ModReduceInPlace(result2);
+    cryptoContext->EvalAddInPlace(result2, result);
+    cryptoContext->LevelReduceInPlace(ctxt_cos2, nullptr, 1);
+    result2 = cryptoContext->EvalMult(ctxt_cos2, result2);
+    cryptoContext->ModReduceInPlace(result2);
+
+    result = cryptoContext->EvalSub(0.5, ctxt_sin);
+    // cryptoContext->LevelReduceInPlace(term, nullptr, 4);
+    term = cryptoContext->EvalMult(ctxt_cos, cryptoContext->GetScheme()->MultByInteger(ctxt_sin, 4));
+    cryptoContext->ModReduceInPlace(term);
+    // cryptoContext->LevelReduceInPlace(term, nullptr, 3);
+    cryptoContext->EvalAddInPlace(result, term);
+    result = cryptoContext->EvalAdd(result, result2);
+
+    std::cerr << "result levels: " << result->GetLevel() << " and depth: " << result->GetNoiseScaleDeg() << std::endl;
+
+    cryptoContext->Decrypt(keyPair.secretKey, result, &ptxt_result);
+    ptxt_result->SetLength(numSlots);
+    std::cout << "Output after polynomial approximation for step 8:" << ptxt_result << std::endl;
+    exact8 = {0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1};
+
+    error8 = ptxt_result->GetRealPackedValue();
     std::transform(exact8.begin(), exact8.end(), error8.begin(), error8.begin(), std::minus<double>());
     std::transform(error8.begin(), error8.end(), error8.begin(), [&](const double& elem) { return std::abs(elem); });
     std::cout << "Absolute error mod 8: " << error8 << std::endl;
@@ -3020,11 +3112,14 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, uint32_t d
         }
 
         if (step) {
-            std::transform(coefficients1.begin(), coefficients1.end(), coefficients1.begin(),
-                           std::bind(std::multiplies<double>(), std::placeholders::_1, 1.0 / (1 << digitBitSize)));
-            std::transform(coefficients2.begin(), coefficients2.end(), coefficients2.begin(),
-                           std::bind(std::multiplies<double>(), std::placeholders::_1, 1.0 / (1 << digitBitSize)));
+            std::transform(
+                coefficients1.begin(), coefficients1.end(), coefficients1.begin(),
+                std::bind(std::multiplies<double>(), std::placeholders::_1, 1.0 / (1 << (digitBitSize - 1))));
+            std::transform(
+                coefficients2.begin(), coefficients2.end(), coefficients2.begin(),
+                std::bind(std::multiplies<double>(), std::placeholders::_1, 1.0 / (1 << (digitBitSize - 1))));
         }
+        std::cerr << "1.0 / (1 << digitBitSize) = " << 1.0 / (1 << digitBitSize) << std::endl;
 
         // k = K_SPARSE;
         k = 1.0;  // do not divide by k as we already did it during precomputation
@@ -3155,6 +3250,11 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, uint32_t d
                 ApplyDoubleAngleIterations(ctxtEncI, numIter);
             }
 
+            std::cerr << "ctxtEnc levels: " << ctxtEnc->GetLevel() << " and depth: " << ctxtEnc->GetNoiseScaleDeg()
+                      << std::endl;
+            std::cerr << "ctxtEncI levels: " << ctxtEncI->GetLevel() << " and depth: " << ctxtEncI->GetNoiseScaleDeg()
+                      << std::endl;
+
             if (digitBitSize == 2) {
                 // Post-process cos(2pi x) and sin(2pi x) to get the mod 4 approximation or the step 4 approximation
                 if (!step) {
@@ -3197,7 +3297,7 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, uint32_t d
             else if (digitBitSize == 3) {
                 // Post-process cos(2pi x) and sin(2pi x) to get the mod 8 approximation or the step 8 approximation
                 if (!step) {
-                    cc->GetScheme()->MultByIntegerInPlace(ctxtEnc2, 2);              // 2sin
+                    algo->MultByIntegerInPlace(ctxtEnc2, 2);                         // 2sin
                     auto ctxt_sin_sqrt = cc->EvalMult(ctxtEnc2, 2.0 + 2 * sqrt(2));  // (4+4sqrt(2))sin
                     cc->ModReduceInPlace(ctxt_sin_sqrt);
                     auto ctxt_cos2 = cc->EvalSquare(ctxtEnc);  // cos^2
@@ -3212,6 +3312,7 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, uint32_t d
                     cc->ModReduceInPlace(term);
                     cc->LevelReduceInPlace(term, nullptr, 1);
                     cc->EvalSubInPlace(result, term);
+                    // Andreea: we can get rid of a multiplication here by combining with the next term of ctxt_cos2
                     term = cc->EvalMult(ctxt_cos2,
                                         cc->EvalSub(8, cc->EvalAdd(ctxt_sin_sqrt, algo->MultByInteger(ctxtEnc2, 6))));
                     cc->ModReduceInPlace(term);
@@ -3237,7 +3338,7 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, uint32_t d
                     cc->LevelReduceInPlace(result, nullptr, 4);
                     ctxtEnc = cc->EvalAdd(result, result2);
 
-                    cc->GetScheme()->MultByIntegerInPlace(ctxtEncI2, 2);         // 2sin
+                    algo->MultByIntegerInPlace(ctxtEncI2, 2);                    // 2sin
                     ctxt_sin_sqrt = cc->EvalMult(ctxtEncI2, 2.0 + 2 * sqrt(2));  // (4+4sqrt(2))sin
                     cc->ModReduceInPlace(ctxt_sin_sqrt);
                     ctxt_cos2 = cc->EvalSquare(ctxtEncI);  // cos^2
@@ -3278,9 +3379,105 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, uint32_t d
                     ctxtEncI = cc->EvalAdd(result, result2);
                 }
                 else {
+                    algo->MultByIntegerInPlace(ctxtEnc2, 2);  // 2sin (sin and cos were divided by 1/4)
+                    auto ctxt_sin_sqrt = cc->EvalMult(ctxtEnc2, 2.0 + 2 * sqrt(2));  // (4+4sqrt(2))sin
+                    cc->ModReduceInPlace(ctxt_sin_sqrt);
+                    algo->MultByIntegerInPlace(ctxtEnc, 2);                            // 2cos
+                    auto ctxt_cos2 = algo->MultByInteger(cc->EvalSquare(ctxtEnc), 4);  // 16cos^2
+                    cc->ModReduceInPlace(ctxt_cos2);
+
+                    auto result = cc->EvalSub(algo->MultByInteger(ctxtEnc2, 7), cc->EvalAdd(1.0, ctxt_sin_sqrt));
+                    // cc->LevelReduceInPlace(result, nullptr, 1);
+                    auto term = cc->EvalMult(ctxtEnc, cc->EvalSub(-1, algo->MultByInteger(ctxtEnc2, 20)));
+                    cc->ModReduceInPlace(term);
+                    // cc->LevelReduceInPlace(term, nullptr, 1);
+                    cc->EvalAddInPlace(result, term);
+                    term = cc->EvalMult(ctxt_cos2,
+                                        cc->EvalSub(3, cc->EvalAdd(ctxt_sin_sqrt, algo->MultByInteger(ctxtEnc2, 6))));
+                    cc->ModReduceInPlace(term);
+                    cc->EvalAddInPlace(result, term);
+
+                    auto result2 = cc->EvalMult(ctxtEnc, cc->EvalAdd(4, algo->MultByInteger(ctxtEnc2, 32)));
+                    cc->ModReduceInPlace(result2);
+                    term = cc->EvalMult(ctxt_cos2, cc->EvalAdd(-2.0, algo->MultByInteger(ctxt_sin_sqrt, 2)));
+                    cc->ModReduceInPlace(term);
+                    cc->EvalAddInPlace(result2, term);
+                    term = cc->EvalAdd(4, algo->MultByInteger(ctxtEnc2, 16));
+                    term = cc->EvalMult(ctxtEnc, term);
+                    cc->ModReduceInPlace(term);
+                    term = cc->EvalMult(ctxt_cos2, term);
+                    cc->ModReduceInPlace(term);
+                    cc->EvalSubInPlace(result2, term);
+
+                    cc->LevelReduceInPlace(ctxt_cos2, nullptr, 1);
+                    result2 = cc->EvalMult(ctxt_cos2, result2);
+                    cc->ModReduceInPlace(result2);
+                    cc->EvalAddInPlace(result2, result);
+                    cc->LevelReduceInPlace(ctxt_cos2, nullptr, 1);
+                    result2 = cc->EvalMult(ctxt_cos2, result2);
+                    cc->ModReduceInPlace(result2);
+
+                    result = cc->EvalSub(0.5, ctxtEnc2);
+                    // cc->LevelReduceInPlace(term, nullptr, 4);
+                    term = cc->EvalMult(ctxtEnc, algo->MultByInteger(ctxtEnc2, 4));
+                    cc->ModReduceInPlace(term);
+                    // cc->LevelReduceInPlace(term, nullptr, 3);
+                    cc->EvalAddInPlace(result, term);
+                    ctxtEnc = cc->EvalAdd(result, result2);
+
+                    algo->MultByIntegerInPlace(ctxtEncI2, 2);  // 2sin (sin and cos were divided by 1/4)
+                    ctxt_sin_sqrt = cc->EvalMult(ctxtEncI2, 2.0 + 2 * sqrt(2));  // (4+4sqrt(2))sin
+                    cc->ModReduceInPlace(ctxt_sin_sqrt);
+                    algo->MultByIntegerInPlace(ctxtEncI, 2);                       // 2cos
+                    ctxt_cos2 = algo->MultByInteger(cc->EvalSquare(ctxtEncI), 4);  // 16cos^2
+                    cc->ModReduceInPlace(ctxt_cos2);
+
+                    result = cc->EvalSub(algo->MultByInteger(ctxtEncI2, 7), cc->EvalAdd(1.0, ctxt_sin_sqrt));
+                    // cc->LevelReduceInPlace(result, nullptr, 1);
+                    term = cc->EvalMult(ctxtEncI, cc->EvalSub(-1, algo->MultByInteger(ctxtEncI2, 20)));
+                    cc->ModReduceInPlace(term);
+                    // cc->LevelReduceInPlace(term, nullptr, 1);
+                    cc->EvalAddInPlace(result, term);
+                    term = cc->EvalMult(ctxt_cos2,
+                                        cc->EvalSub(3, cc->EvalAdd(ctxt_sin_sqrt, algo->MultByInteger(ctxtEncI2, 6))));
+                    cc->ModReduceInPlace(term);
+                    cc->EvalAddInPlace(result, term);
+
+                    result2 = cc->EvalMult(ctxtEncI, cc->EvalAdd(4, algo->MultByInteger(ctxtEncI2, 32)));
+                    cc->ModReduceInPlace(result2);
+                    term = cc->EvalMult(ctxt_cos2, cc->EvalAdd(-2.0, algo->MultByInteger(ctxt_sin_sqrt, 2)));
+                    cc->ModReduceInPlace(term);
+                    cc->EvalAddInPlace(result2, term);
+                    term = cc->EvalAdd(4, algo->MultByInteger(ctxtEncI2, 16));
+                    term = cc->EvalMult(ctxtEncI, term);
+                    cc->ModReduceInPlace(term);
+                    term = cc->EvalMult(ctxt_cos2, term);
+                    cc->ModReduceInPlace(term);
+                    cc->EvalSubInPlace(result2, term);
+
+                    cc->LevelReduceInPlace(ctxt_cos2, nullptr, 1);
+                    result2 = cc->EvalMult(ctxt_cos2, result2);
+                    cc->ModReduceInPlace(result2);
+                    cc->EvalAddInPlace(result2, result);
+                    cc->LevelReduceInPlace(ctxt_cos2, nullptr, 1);
+                    result2 = cc->EvalMult(ctxt_cos2, result2);
+                    cc->ModReduceInPlace(result2);
+
+                    result = cc->EvalSub(0.5, ctxtEncI2);
+                    // cc->LevelReduceInPlace(term, nullptr, 4);
+                    term = cc->EvalMult(ctxtEncI, algo->MultByInteger(ctxtEncI2, 4));
+                    cc->ModReduceInPlace(term);
+                    // cc->LevelReduceInPlace(term, nullptr, 3);
+                    cc->EvalAddInPlace(result, term);
+                    ctxtEncI = cc->EvalAdd(result, result2);
                 }
             }
         }
+
+        std::cerr << "ctxtEnc levels: " << ctxtEnc->GetLevel() << " and depth: " << ctxtEnc->GetNoiseScaleDeg()
+                  << std::endl;
+        std::cerr << "ctxtEncI levels: " << ctxtEncI->GetLevel() << " and depth: " << ctxtEncI->GetNoiseScaleDeg()
+                  << std::endl;
 
         algo->MultByMonomialInPlace(ctxtEncI, M / 4);
         cc->EvalAddInPlace(ctxtEnc, ctxtEncI);
@@ -3458,45 +3655,94 @@ Ciphertext<DCRTPoly> EvalFuncBT(ConstCiphertext<DCRTPoly> ciphertext, uint32_t d
                 }
             }
             else if (digitBitSize == 3) {
-                cc->GetScheme()->MultByIntegerInPlace(ctxtEnc2, 2);              // 2sin
-                auto ctxt_sin_sqrt = cc->EvalMult(ctxtEnc2, 2.0 + 2 * sqrt(2));  // (4+4sqrt(2))sin
-                cc->ModReduceInPlace(ctxt_sin_sqrt);
-                auto ctxt_cos2 = cc->EvalSquare(ctxtEnc);  // cos^2
-                cc->ModReduceInPlace(ctxt_cos2);
-                auto ctxt_cos3 = cc->EvalMult(ctxt_cos2, ctxtEnc);  // cos^3
-                cc->ModReduceInPlace(ctxt_cos3);
+                if (!step) {
+                    algo->MultByIntegerInPlace(ctxtEnc2, 2);                         // 2sin
+                    auto ctxt_sin_sqrt = cc->EvalMult(ctxtEnc2, 2.0 + 2 * sqrt(2));  // (4+4sqrt(2))sin
+                    cc->ModReduceInPlace(ctxt_sin_sqrt);
+                    auto ctxt_cos2 = cc->EvalSquare(ctxtEnc);  // cos^2
+                    cc->ModReduceInPlace(ctxt_cos2);
+                    auto ctxt_cos3 = cc->EvalMult(ctxt_cos2, ctxtEnc);  // cos^3
+                    cc->ModReduceInPlace(ctxt_cos3);
 
-                auto result = cc->EvalSub(algo->MultByInteger(ctxtEnc2, 7), cc->EvalAdd(2, ctxt_sin_sqrt));
-                cc->LevelReduceInPlace(result, nullptr, 1);
+                    auto result = cc->EvalSub(algo->MultByInteger(ctxtEnc2, 7), cc->EvalAdd(2, ctxt_sin_sqrt));
+                    cc->LevelReduceInPlace(result, nullptr, 1);
 
-                auto term = cc->EvalMult(ctxtEnc, cc->EvalAdd(2, algo->MultByInteger(ctxtEnc2, 4)));
-                cc->ModReduceInPlace(term);
-                cc->LevelReduceInPlace(term, nullptr, 1);
-                cc->EvalSubInPlace(result, term);
-                term = cc->EvalMult(ctxt_cos2,
-                                    cc->EvalSub(8, cc->EvalAdd(ctxt_sin_sqrt, algo->MultByInteger(ctxtEnc2, 6))));
-                cc->ModReduceInPlace(term);
-                cc->EvalAddInPlace(result, term);
+                    auto term = cc->EvalMult(ctxtEnc, cc->EvalAdd(2, algo->MultByInteger(ctxtEnc2, 4)));
+                    cc->ModReduceInPlace(term);
+                    cc->LevelReduceInPlace(term, nullptr, 1);
+                    cc->EvalSubInPlace(result, term);
+                    term = cc->EvalMult(ctxt_cos2,
+                                        cc->EvalSub(8, cc->EvalAdd(ctxt_sin_sqrt, algo->MultByInteger(ctxtEnc2, 6))));
+                    cc->ModReduceInPlace(term);
+                    cc->EvalAddInPlace(result, term);
 
-                auto result2 = cc->EvalMult(ctxtEnc, cc->EvalAdd(8, algo->MultByInteger(ctxtEnc2, 4)));
-                cc->ModReduceInPlace(result2);
-                cc->LevelReduceInPlace(result, nullptr, 1);
-                term = cc->EvalMult(ctxt_cos2, cc->EvalAdd(-8, algo->MultByInteger(ctxt_sin_sqrt, 2)));
-                cc->ModReduceInPlace(term);
-                cc->EvalAddInPlace(result2, term);
-                cc->EvalSubInPlace(result2, algo->MultByInteger(ctxt_cos3, 8));
+                    auto result2 = cc->EvalMult(ctxtEnc, cc->EvalAdd(8, algo->MultByInteger(ctxtEnc2, 4)));
+                    cc->ModReduceInPlace(result2);
+                    cc->LevelReduceInPlace(result, nullptr, 1);
+                    term = cc->EvalMult(ctxt_cos2, cc->EvalAdd(-8, algo->MultByInteger(ctxt_sin_sqrt, 2)));
+                    cc->ModReduceInPlace(term);
+                    cc->EvalAddInPlace(result2, term);
+                    cc->EvalSubInPlace(result2, algo->MultByInteger(ctxt_cos3, 8));
 
-                cc->LevelReduceInPlace(ctxt_cos2, nullptr, 1);
-                result2 = cc->EvalMult(ctxt_cos2, result2);
-                cc->ModReduceInPlace(result2);
-                cc->EvalAddInPlace(result2, result);
-                cc->LevelReduceInPlace(ctxt_cos2, nullptr, 1);
-                result2 = cc->EvalMult(ctxt_cos2, result2);
-                cc->ModReduceInPlace(result2);
+                    cc->LevelReduceInPlace(ctxt_cos2, nullptr, 1);
+                    result2 = cc->EvalMult(ctxt_cos2, result2);
+                    cc->ModReduceInPlace(result2);
+                    cc->EvalAddInPlace(result2, result);
+                    cc->LevelReduceInPlace(ctxt_cos2, nullptr, 1);
+                    result2 = cc->EvalMult(ctxt_cos2, result2);
+                    cc->ModReduceInPlace(result2);
 
-                result = cc->EvalSub(4, ctxtEnc2);
-                cc->LevelReduceInPlace(result, nullptr, 4);
-                ctxtEnc = cc->EvalAdd(result, result2);
+                    result = cc->EvalSub(4, ctxtEnc2);
+                    cc->LevelReduceInPlace(result, nullptr, 4);
+                    ctxtEnc = cc->EvalAdd(result, result2);
+                }
+                else {
+                    algo->MultByIntegerInPlace(ctxtEnc2, 2);  // 2sin (sin and cos were divided by 1/4)
+                    auto ctxt_sin_sqrt = cc->EvalMult(ctxtEnc2, 2.0 + 2 * sqrt(2));  // (4+4sqrt(2))sin
+                    cc->ModReduceInPlace(ctxt_sin_sqrt);
+                    algo->MultByIntegerInPlace(ctxtEnc, 2);                            // 2cos
+                    auto ctxt_cos2 = algo->MultByInteger(cc->EvalSquare(ctxtEnc), 4);  // 16cos^2
+                    cc->ModReduceInPlace(ctxt_cos2);
+
+                    auto result = cc->EvalSub(algo->MultByInteger(ctxtEnc2, 7), cc->EvalAdd(1.0, ctxt_sin_sqrt));
+                    // cc->LevelReduceInPlace(result, nullptr, 1);
+                    auto term = cc->EvalMult(ctxtEnc, cc->EvalSub(-1, algo->MultByInteger(ctxtEnc2, 20)));
+                    cc->ModReduceInPlace(term);
+                    // cc->LevelReduceInPlace(term, nullptr, 1);
+                    cc->EvalAddInPlace(result, term);
+                    term = cc->EvalMult(ctxt_cos2,
+                                        cc->EvalSub(3, cc->EvalAdd(ctxt_sin_sqrt, algo->MultByInteger(ctxtEnc2, 6))));
+                    cc->ModReduceInPlace(term);
+                    cc->EvalAddInPlace(result, term);
+
+                    auto result2 = cc->EvalMult(ctxtEnc, cc->EvalAdd(4, algo->MultByInteger(ctxtEnc2, 32)));
+                    cc->ModReduceInPlace(result2);
+                    term = cc->EvalMult(ctxt_cos2, cc->EvalAdd(-2.0, algo->MultByInteger(ctxt_sin_sqrt, 2)));
+                    cc->ModReduceInPlace(term);
+                    cc->EvalAddInPlace(result2, term);
+                    term = cc->EvalAdd(4, algo->MultByInteger(ctxtEnc2, 16));
+                    term = cc->EvalMult(ctxtEnc, term);
+                    cc->ModReduceInPlace(term);
+                    term = cc->EvalMult(ctxt_cos2, term);
+                    cc->ModReduceInPlace(term);
+                    cc->EvalSubInPlace(result2, term);
+
+                    cc->LevelReduceInPlace(ctxt_cos2, nullptr, 1);
+                    result2 = cc->EvalMult(ctxt_cos2, result2);
+                    cc->ModReduceInPlace(result2);
+                    cc->EvalAddInPlace(result2, result);
+                    cc->LevelReduceInPlace(ctxt_cos2, nullptr, 1);
+                    result2 = cc->EvalMult(ctxt_cos2, result2);
+                    cc->ModReduceInPlace(result2);
+
+                    result = cc->EvalSub(0.5, ctxtEnc2);
+                    // cc->LevelReduceInPlace(term, nullptr, 4);
+                    term = cc->EvalMult(ctxtEnc, algo->MultByInteger(ctxtEnc2, 4));
+                    cc->ModReduceInPlace(term);
+                    // cc->LevelReduceInPlace(term, nullptr, 3);
+                    cc->EvalAddInPlace(result, term);
+                    ctxtEnc = cc->EvalAdd(result, result2);
+                }
             }
         }
 
@@ -3576,6 +3822,7 @@ void Floor() {
     // BFV parameters
     BigInteger Q("1152921504606846976");  // 2^60
     BigInteger p("1048576");              // 2^20
+    // BigInteger p("2097152");              // 2^21
     // BigInteger Bigq = BigInteger("2199023255552");  // Mod 2^41
     // BigInteger pNew("2");                           // 2
     // BigInteger Bigq = BigInteger("4398046511104");  // Mod 2^42
@@ -3605,7 +3852,6 @@ void Floor() {
     // When 3, the floor evaluation from BFV evaluates to zeroes, but fresh CKKS ciphertexts evaluate correctly
     uint32_t levelsAvailableAfterBootstrap = 2;
     usint depth                            = levelsAvailableAfterBootstrap + 8 + 2 * (pNew.GetMSB() - 1) - 1;
-    // depth                                  = (pNew.GetMSB() > 2) ? depth + 2*(pNew.GetMSB() - 1) : depth;
     parameters.SetMultiplicativeDepth(depth);
 
     CryptoContext<DCRTPoly> cryptoContext = GenCryptoContext(parameters);
@@ -3692,7 +3938,8 @@ void Floor() {
     // =======Step 2. Encrypting and decrypting using BFV-like encryption=======
     std::cerr << "\nBigQBFV: " << Q << std::endl << std::endl;
 
-    std::vector<int64_t> x = {524288, 1, 2, 3, 16, 33, 64, 1048575};
+    // std::vector<int64_t> x = {524288, 1, 2, 3, 16, 33, 64, 1048575};
+    std::vector<int64_t> x = {0, 1, 2, 3, 4, 5, 6, 7};
 
     std::cerr << "Plaintext before BFV encryption: " << x << std::endl;
 
@@ -3757,8 +4004,10 @@ void Floor() {
 
     // =======Step 5. Bootstrap the digit=======
 
-    auto ctxtAfterFuncBT = EvalFuncBT(ctxtNew, pNew.GetMSB() - 1, qPrimeCKKS, 1.0);
+    // auto ctxtAfterFuncBT = EvalFuncBT(ctxtNew, pNew.GetMSB() - 1, qPrimeCKKS, 1.0);
     // auto ctxtAfterFuncBT = EvalFuncBT(ctxt, pNew.GetMSB() - 1, Bigq, 1.0); // Test for fresh ciphertext
+    // auto ctxtAfterFuncBT = EvalFuncBT(ctxt, pNew.GetMSB() - 1, Bigq, 1.0, true); // Test for fresh ciphertext
+    auto ctxtAfterFuncBT = EvalFuncBT(ctxtNew, pNew.GetMSB() - 1, qPrimeCKKS, 1.0, true);
 
     cryptoContext->ModReduceInPlace(ctxtAfterFuncBT);
 
@@ -3836,12 +4085,14 @@ void Sign() {
 
     // BFV parameters
     BigInteger Q("1152921504606846976");  // 2^60
-    BigInteger p("1048576");              // 2^20
-    // BigInteger Bigq          = BigInteger("35184372088832"); // Mod 2^45
+    // BigInteger p("1048576");              // 2^20
+    BigInteger p("2097152");  // 2^21
     // BigInteger Bigq = BigInteger("2199023255552");  // Mod 2^41
     // BigInteger pNew("2");                           // 2
     BigInteger Bigq = BigInteger("4398046511104");  // Mod 2^42
-    BigInteger pNew("4");                           // 4
+    // BigInteger pNew("4");                           // 4
+    // BigInteger Bigq = BigInteger("8796093022208");  // Mod 2^43
+    BigInteger pNew("8");  // 8
 
     uint32_t dcrtBits = Bigq.GetMSB() - 1;
     uint32_t firstMod = Bigq.GetMSB() - 1;
@@ -3856,7 +4107,7 @@ void Sign() {
     parameters.SetFirstModSize(firstMod);
     parameters.SetNumLargeDigits(3);
     parameters.SetBatchSize(numSlots);
-    parameters.SetRingDim(16);
+    parameters.SetRingDim(32);
 
     std::vector<uint32_t> levelBudget = {1, 1};
 
@@ -3864,8 +4115,7 @@ void Sign() {
     // When 1, fresh CKKS ciphertexts (no modulus reduction is being done) evaluate to zeroes
     // When 3, the floor evaluation from BFV evaluates to zeroes, but fresh CKKS ciphertexts evaluate correctly
     uint32_t levelsAvailableAfterBootstrap = 2;
-    usint depth                            = levelsAvailableAfterBootstrap + 8 + pNew.GetMSB() - 1;
-    depth                                  = (pNew.GetMSB() > 2) ? depth + 1 : depth;
+    usint depth                            = levelsAvailableAfterBootstrap + 8 + 2 * (pNew.GetMSB() - 1) - 1;
     parameters.SetMultiplicativeDepth(depth);
 
     CryptoContext<DCRTPoly> cryptoContext = GenCryptoContext(parameters);
@@ -3934,7 +4184,10 @@ void Sign() {
     // =======Step 2. Encrypting and decrypting using BFV-like encryption=======
     std::cerr << "\nBigQBFV: " << Q << std::endl << std::endl;
 
-    std::vector<int64_t> x = {524288, 1, 2, 3, 16, 33, 64, 1048575};
+    // std::vector<int64_t> x = {524288, 1, 2, 3, 16, 33, 64, 1048575};
+    std::vector<int64_t> x = {
+        static_cast<int64_t>(p.ConvertToInt() / 2), static_cast<int64_t>(p.ConvertToInt() / 2) + 2, 0, 3, 16, 33, 64,
+        static_cast<int64_t>(p.ConvertToInt() - 1)};
 
     std::cerr << "Plaintext before BFV encryption: " << x << std::endl;
 
@@ -4131,5 +4384,5 @@ int main(int argc, char* argv[]) {
     // SimpleBootstrapExample();
     // TestModApprox();
     Floor();
-    // Sign();
+    Sign();
 }
